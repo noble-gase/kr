@@ -127,7 +127,7 @@ macro_rules! define_ok {
 
         impl<T> IntoResponse for OK<T>
         where
-            T: Serialize,
+            T: Serialize + Send,
         {
             fn into_response(self) -> Response {
                 Json(self.to_reply()).into_response()
