@@ -18,85 +18,71 @@ end
 /// # Examples
 ///
 /// ```no_run
-/// let mut mutex = mutex::RedLock::new((pool, async_pool), "key".to_string(), Duration::from_secs(60), true);
-/// let ok = mutex.async_lock().await?;
-/// if !ok  {
-///     return Err(Code::ErrFrequent(None))
+/// // 获取锁
+/// let mut mutex = mutex::RedLock::lock(pool, "key", Duration::from_secs(10), None)?;
+/// if mutex.is_none() {
+///     return Err("Operation is too frequent, please try again later")
 /// }
+/// let mut mutex = mutex.unwrap();
+/// // do something
+/// mutex.unlock()?;
+///
+/// // 尝试获取锁（重试3次，间隔100ms）
+/// let mut mutex = mutex::RedLock::lock(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100))))?;
+/// if mutex.is_none() {
+///     return Err("Operation is too frequent, please try again later")
+/// }
+/// let mut mutex = mutex.unwrap();
+/// // do something
+/// mutex.unlock()?;
 /// ```
 pub struct RedLock<'a> {
     pool: &'a r2d2::Pool<redis::Client>,
-    async_pool: &'a bb8::Pool<async_redis::AsyncConnManager>,
     key: String,
-    token: String,
-    expire: u64,
-    unlock: bool,
+    ttl: u64,
+    token: Option<String>,
 }
 
 impl<'a> RedLock<'a> {
-    pub fn new(
-        client: (
-            &'a r2d2::Pool<redis::Client>,
-            &'a bb8::Pool<async_redis::AsyncConnManager>,
-        ),
-        key: String,
+    /// 获取锁
+    pub fn lock(
+        client: &'a r2d2::Pool<redis::Client>,
+        key: &str,
         ttl: time::Duration,
-        auto_unlock: bool,
-    ) -> RedLock<'a> {
-        let (pool, async_pool) = client;
-        RedLock {
-            pool,
-            async_pool,
-            key,
-            token: String::from(""),
-            expire: ttl.as_millis() as u64,
-            unlock: auto_unlock,
+        retry: Option<(i32, time::Duration)>,
+    ) -> anyhow::Result<Option<Self>> {
+        let mut red_lock = RedLock {
+            pool: client,
+            key: key.to_string(),
+            ttl: ttl.as_millis() as u64,
+            token: None,
+        };
+
+        // 重试模式
+        if let Some((attempts, interval)) = retry {
+            for i in 0..attempts {
+                red_lock._acquire()?;
+                if red_lock.token.is_some() {
+                    return Ok(Some(red_lock));
+                }
+                if i < attempts - 1 {
+                    thread::sleep(interval);
+                }
+            }
+            return Ok(None);
         }
+
+        // 一次性模式
+        red_lock._acquire()?;
+        if red_lock.token.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(red_lock))
     }
 
-    /// 获取锁（同步）
-    pub fn lock(&mut self) -> anyhow::Result<bool> {
-        self._acquire()
-    }
-    /// 获取锁（异步）
-    pub async fn async_lock(&mut self) -> anyhow::Result<bool> {
-        self._async_acquire().await
-    }
-
-    /// 尝试获取锁（同步）
-    pub fn try_lock(&mut self, attempts: i32, interval: time::Duration) -> anyhow::Result<bool> {
-        for i in 0..attempts {
-            let ok = self._acquire()?;
-            if ok {
-                return Ok(true);
-            }
-            if i < attempts - 1 {
-                thread::sleep(interval);
-            }
-        }
-        Ok(false)
-    }
-    /// 尝试获取锁（异步）
-    pub async fn async_try_lock(
-        &mut self,
-        attempts: i32,
-        interval: time::Duration,
-    ) -> anyhow::Result<bool> {
-        for i in 0..attempts {
-            let ok = self._async_acquire().await?;
-            if ok {
-                return Ok(true);
-            }
-            if i < attempts - 1 {
-                sleep(interval).await;
-            }
-        }
-        Ok(false)
-    }
-
-    /// 手动释放锁（同步）
+    /// 手动释放锁
     pub fn unlock(&mut self) -> anyhow::Result<()> {
-        if self.token.is_empty() {
+        if self.token.is_none() {
             return Ok(());
         }
         let mut conn = self.pool.get()?;
@@ -104,77 +90,34 @@ impl<'a> RedLock<'a> {
         script
             .key(&self.key)
             .arg(&self.token)
-            .invoke::<()>(&mut *conn)?;
-        Ok(())
-    }
-    /// 手动释放锁（异步）
-    pub async fn async_unlock(&mut self) -> anyhow::Result<()> {
-        if self.token.is_empty() {
-            return Ok(());
-        }
-        let mut conn = self.async_pool.get().await?;
-        let script = redis::Script::new(SCRIPT);
-        script
-            .key(&self.key)
-            .arg(&self.token)
-            .invoke_async::<()>(&mut *conn)
-            .await?;
+            .invoke::<()>(&mut conn)?;
+        self.token = None;
         Ok(())
     }
 
-    fn _acquire(&mut self) -> anyhow::Result<bool> {
+    fn _acquire(&mut self) -> anyhow::Result<()> {
         let mut conn = self.pool.get()?;
         let opts = redis::SetOptions::default()
             .conditional_set(NX)
-            .with_expiration(PX(self.expire));
+            .with_expiration(PX(self.ttl));
         let token = Uuid::new_v4().to_string();
 
         let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts);
         match ret_setnx {
             Ok(v) => {
                 if v {
-                    self.token = token;
-                    return Ok(true);
+                    self.token = Some(token);
                 }
-                Ok(false)
+                Ok(())
             }
             Err(e) => {
                 // 尝试GET一次：避免因redis网络错误导致误加锁
                 let ret_get: Option<String> = conn.get(&self.key)?;
                 let v = ret_get.ok_or(e)?;
                 if v == token {
-                    self.token = token;
-                    return Ok(true);
+                    self.token = Some(token);
                 }
-                Ok(false)
-            }
-        }
-    }
-    async fn _async_acquire(&mut self) -> anyhow::Result<bool> {
-        let mut conn = self.async_pool.get().await?;
-        let opts = redis::SetOptions::default()
-            .conditional_set(NX)
-            .with_expiration(PX(self.expire));
-        let token = Uuid::new_v4().to_string();
-
-        let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts).await;
-        match ret_setnx {
-            Ok(v) => {
-                if v {
-                    self.token = token;
-                    return Ok(true);
-                }
-                Ok(false)
-            }
-            Err(e) => {
-                // 尝试GET一次：避免因redis网络错误导致误加锁
-                let ret_get: Option<String> = conn.get(&self.key).await?;
-                let v = ret_get.ok_or(e)?;
-                if v == token {
-                    self.token = token;
-                    return Ok(true);
-                }
-                Ok(false)
+                Ok(())
             }
         }
     }
@@ -183,22 +126,151 @@ impl<'a> RedLock<'a> {
 /// 自动释放锁
 impl Drop for RedLock<'_> {
     fn drop(&mut self) {
-        if !self.unlock || self.token.is_empty() {
+        if self.token.is_none() {
             return;
         }
 
-        let mut conn = match self.pool.get() {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!(err = ?e, "[mutex.red_lock] redis get connection error");
-                return;
-            }
+        // 释放锁
+        let ret = self.unlock();
+        if let Err(e) = ret {
+            tracing::error!(err = ?e, "[mutex.red_lock] drop unlock(key={}) failed", self.key);
+        }
+    }
+}
+
+/// 基于Redis的异步分布式锁
+/// # Examples
+///
+/// ```no_run
+/// // 获取锁
+/// let mut mutex = mutex::RedAsyncLock::lock(pool, "key", 10, None).await?;
+/// if mutex.is_none() {
+///     return Err("Operation is too frequent, please try again later")
+/// }
+/// let mut mutex = mutex.unwrap();
+/// // do something
+/// mutex.unlock().await?;
+///
+/// // 尝试获取锁（重试3次，间隔100ms）
+/// let mut mutex = mutex::RedAsyncLock::lock(pool, "key", 10, Some((3, Duration::from_millis(100)))).await?;
+/// if mutex.is_none() {
+///     return Err("Operation is too frequent, please try again later")
+/// }
+/// let mut mutex = mutex.unwrap();
+/// // do something
+/// mutex.unlock().await?;
+/// ```
+pub struct RedAsyncLock<'a> {
+    pool: &'a bb8::Pool<async_redis::AsyncConnManager>,
+    key: String,
+    ttl: u64,
+    token: Option<String>,
+}
+
+impl<'a> RedAsyncLock<'a> {
+    /// 获取锁
+    pub async fn lock(
+        pool: &'a bb8::Pool<async_redis::AsyncConnManager>,
+        key: &str,
+        ttl: time::Duration,
+        retry: Option<(i32, time::Duration)>,
+    ) -> anyhow::Result<Option<Self>> {
+        let mut red_lock = RedAsyncLock {
+            pool,
+            key: key.to_string(),
+            ttl: ttl.as_millis() as u64,
+            token: None,
         };
 
-        let script = redis::Script::new(SCRIPT);
-        let ret: redis::RedisResult<()> = script.key(&self.key).arg(&self.token).invoke(&mut conn);
-        if let Err(e) = ret {
-            tracing::error!(err = ?e, "[mutex.red_lock] redis del key({}) error", self.key);
+        if let Some((attempts, interval)) = retry {
+            for i in 0..attempts {
+                red_lock._acquire().await?;
+                if red_lock.token.is_some() {
+                    return Ok(Some(red_lock));
+                }
+                if i < attempts - 1 {
+                    sleep(interval).await;
+                }
+            }
+            return Ok(None);
         }
+
+        red_lock._acquire().await?;
+        if red_lock.token.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(red_lock))
+    }
+
+    /// 手动释放锁
+    pub async fn unlock(&mut self) -> anyhow::Result<()> {
+        if self.token.is_none() {
+            return Ok(());
+        }
+        let mut conn = self.pool.get().await?;
+        let script = redis::Script::new(SCRIPT);
+        script
+            .key(&self.key)
+            .arg(&self.token)
+            .invoke_async::<()>(&mut *conn)
+            .await?;
+        self.token = None;
+        Ok(())
+    }
+
+    async fn _acquire(&mut self) -> anyhow::Result<()> {
+        let mut conn = self.pool.get().await?;
+        let opts = redis::SetOptions::default()
+            .conditional_set(NX)
+            .with_expiration(PX(self.ttl));
+        let token = Uuid::new_v4().to_string();
+
+        let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts).await;
+        match ret_setnx {
+            Ok(v) => {
+                if v {
+                    self.token = Some(token);
+                }
+                Ok(())
+            }
+            Err(e) => {
+                // 尝试GET一次：避免因redis网络错误导致误加锁
+                let ret_get: Option<String> = conn.get(&self.key).await?;
+                let v = ret_get.ok_or(e)?;
+                if v == token {
+                    self.token = Some(token);
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// 自动释放锁
+/// TODO: AsyncDrop
+impl Drop for RedAsyncLock<'_> {
+    fn drop(&mut self) {
+        if self.token.is_none() {
+            return;
+        }
+
+        let pool = self.pool.clone();
+        let key = self.key.clone();
+        let token = self.token.clone();
+
+        // 异步释放锁
+        tokio::spawn(async move {
+            if let Ok(mut conn) = pool.get().await {
+                let script = redis::Script::new(SCRIPT);
+                let ret = script
+                    .key(&key)
+                    .arg(&token)
+                    .invoke_async::<()>(&mut *conn)
+                    .await;
+                if let Err(e) = ret {
+                    tracing::error!(err = ?e, "[mutex.red_async_lock] drop unlock(key={}) failed", key);
+                }
+            }
+        });
     }
 }
