@@ -25,6 +25,8 @@ cargo add kr
   - `feature = "salvo"`
   - `feature = "axum"`
 
+⚠️ `aes` 相关功能依赖 `openssl`
+
 👉 具体使用可以参考 [rnx](https://crates.io/crates/rnx)
 
 **Enjoy 😊**

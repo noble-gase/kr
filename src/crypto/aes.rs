@@ -2,13 +2,55 @@ use anyhow::{anyhow, Result};
 use openssl::symm::{decrypt_aead, encrypt_aead, Cipher, Crypter, Mode};
 
 /// AES-CBC pkcs#7
-///
-/// CBC(key, iv)
-pub struct CBC<'a>(pub &'a [u8], pub &'a [u8]);
+pub struct CBC<'a> {
+    key: &'a [u8],
+    iv: &'a [u8],
+}
 
-impl CBC<'_> {
+impl<'a> CBC<'a> {
+    pub fn new(key: &'a [u8], iv: &'a [u8]) -> Self {
+        Self { key, iv }
+    }
+
+    /// 填充字节, 默认: BlockSize(16)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let cbc = CBC::new(key, iv);
+    /// let cipher = cbc.encrypt(data, padding_size).unwrap();
+    pub fn encrypt(&self, data: &[u8], padding_size: Option<usize>) -> Result<Vec<u8>> {
+        let t = self.cipher()?;
+        let mut c = Crypter::new(t, Mode::Encrypt, self.key, Some(self.iv))?;
+        c.pad(false);
+
+        let v = pkcs7_padding(data, padding_size.unwrap_or(t.block_size()));
+        let mut out = vec![0; v.len() + t.block_size()];
+        let count = c.update(&v, &mut out)?;
+        out.truncate(count);
+
+        Ok(out)
+    }
+
+    /// # Example
+    ///
+    /// ```rust
+    /// let cbc = CBC::new(key, iv);
+    /// let plain = cbc.decrypt(cipher).unwrap();
+    pub fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
+        let t = self.cipher()?;
+        let mut c = Crypter::new(t, Mode::Decrypt, self.key, Some(self.iv))?;
+        c.pad(false);
+
+        let mut out = vec![0; data.len() + t.block_size()];
+        let count = c.update(data, &mut out)?;
+        out.truncate(count);
+
+        Ok(pkcs7_unpadding(&out))
+    }
+
     fn cipher(&self) -> Result<Cipher> {
-        let cipher = match self.0.len() {
+        let cipher = match self.key.len() {
             16 => Cipher::aes_128_cbc(),
             24 => Cipher::aes_192_cbc(),
             32 => Cipher::aes_256_cbc(),
@@ -16,12 +58,29 @@ impl CBC<'_> {
         };
         Ok(cipher)
     }
+}
 
-    // 填充字节, 默认: BlockSize(16)
+/// AES-ECB pkcs#7
+pub struct ECB<'a> {
+    key: &'a [u8],
+}
+
+impl<'a> ECB<'a> {
+    pub fn new(key: &'a [u8]) -> Self {
+        Self { key }
+    }
+
+    /// 填充字节, 默认: BlockSize(16)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let ecb = ECB::new(key);
+    /// let cipher = ecb.encrypt(data, padding_size).unwrap();
+    /// ```
     pub fn encrypt(&self, data: &[u8], padding_size: Option<usize>) -> Result<Vec<u8>> {
         let t = self.cipher()?;
-        let CBC(key, iv) = *self;
-        let mut c = Crypter::new(t, Mode::Encrypt, key, Some(iv))?;
+        let mut c = Crypter::new(t, Mode::Encrypt, self.key, None)?;
         c.pad(false);
 
         let v = pkcs7_padding(data, padding_size.unwrap_or(t.block_size()));
@@ -32,10 +91,15 @@ impl CBC<'_> {
         Ok(out)
     }
 
+    /// # Example
+    ///
+    /// ```
+    /// let ecb = ECB::new(key);
+    /// let plain = ecb.decrypt(cipher).unwrap();
+    /// ```
     pub fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let t = self.cipher()?;
-        let CBC(key, iv) = *self;
-        let mut c = Crypter::new(t, Mode::Decrypt, key, Some(iv))?;
+        let mut c = Crypter::new(t, Mode::Decrypt, self.key, None)?;
         c.pad(false);
 
         let mut out = vec![0; data.len() + t.block_size()];
@@ -44,16 +108,9 @@ impl CBC<'_> {
 
         Ok(pkcs7_unpadding(&out))
     }
-}
 
-/// AES-ECB pkcs#7
-///
-/// ECB(key)
-pub struct ECB<'a>(pub &'a [u8]);
-
-impl ECB<'_> {
     fn cipher(&self) -> Result<Cipher> {
-        let cipher = match self.0.len() {
+        let cipher = match self.key.len() {
             16 => Cipher::aes_128_ecb(),
             24 => Cipher::aes_192_ecb(),
             32 => Cipher::aes_256_ecb(),
@@ -61,52 +118,27 @@ impl ECB<'_> {
         };
         Ok(cipher)
     }
-
-    // 填充字节, 默认: BlockSize(16)
-    pub fn encrypt(&self, data: &[u8], padding_size: Option<usize>) -> Result<Vec<u8>> {
-        let t = self.cipher()?;
-        let ECB(key) = *self;
-        let mut c = Crypter::new(t, Mode::Encrypt, key, None)?;
-        c.pad(false);
-
-        let v = pkcs7_padding(data, padding_size.unwrap_or(t.block_size()));
-        let mut out = vec![0; v.len() + t.block_size()];
-        let count = c.update(&v, &mut out)?;
-        out.truncate(count);
-
-        Ok(out)
-    }
-
-    pub fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let t = self.cipher()?;
-        let ECB(key) = *self;
-        let mut c = Crypter::new(t, Mode::Decrypt, key, None)?;
-        c.pad(false);
-
-        let mut out = vec![0; data.len() + t.block_size()];
-        let count = c.update(data, &mut out)?;
-        out.truncate(count);
-
-        Ok(pkcs7_unpadding(&out))
-    }
 }
 
-// AES-GCM
-// GCM(key, nonce) -> (cipher, tag)
-pub struct GCM<'a>(pub &'a [u8], pub &'a [u8]);
+/// AES-GCM
+pub struct GCM<'a> {
+    key: &'a [u8],
+    nonce: &'a [u8],
+}
 
-impl GCM<'_> {
-    fn cipher(&self) -> Result<Cipher> {
-        let cipher = match self.0.len() {
-            16 => Cipher::aes_128_gcm(),
-            24 => Cipher::aes_192_gcm(),
-            32 => Cipher::aes_256_gcm(),
-            _ => return Err(anyhow!("crypto/aes: invalid key size")),
-        };
-        Ok(cipher)
+impl<'a> GCM<'a> {
+    pub fn new(key: &'a [u8], nonce: &'a [u8]) -> Self {
+        Self { key, nonce }
     }
 
-    // tag_size, 默认: 16, 可取范围: [12, 16]
+    /// [tag_size]: 默认=16, 可取范围 (12->16)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let gcm = GCM::new(key, nonce);
+    /// let (cipher, tag) = gcm.encrypt(data, aad, tag_size).unwrap();
+    /// ```
     pub fn encrypt(
         &self,
         data: &[u8],
@@ -114,17 +146,31 @@ impl GCM<'_> {
         tag_size: Option<usize>,
     ) -> Result<(Vec<u8>, Vec<u8>)> {
         let t = self.cipher()?;
-        let GCM(key, iv) = *self;
         let mut tag = vec![0; tag_size.unwrap_or(16)];
-        let out = encrypt_aead(t, key, Some(iv), aad, data, &mut tag)?;
+        let out = encrypt_aead(t, self.key, Some(self.nonce), aad, data, &mut tag)?;
         Ok((out, tag))
     }
 
+    /// # Example
+    ///
+    /// ```
+    /// let gcm = GCM::new(key, nonce);
+    /// let plain = gcm.decrypt(cipher, aad, tag).unwrap();
+    /// ```
     pub fn decrypt(&self, data: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>> {
         let t = self.cipher()?;
-        let GCM(key, iv) = *self;
-        let out = decrypt_aead(t, key, Some(iv), aad, data, tag)?;
+        let out = decrypt_aead(t, self.key, Some(self.nonce), aad, data, tag)?;
         Ok(out)
+    }
+
+    fn cipher(&self) -> Result<Cipher> {
+        let cipher = match self.key.len() {
+            16 => Cipher::aes_128_gcm(),
+            24 => Cipher::aes_192_gcm(),
+            32 => Cipher::aes_256_gcm(),
+            _ => return Err(anyhow!("crypto/aes: invalid key size")),
+        };
+        Ok(cipher)
     }
 }
 
@@ -154,7 +200,7 @@ mod tests {
     #[test]
     fn aes_cbc() {
         let key = b"AES256Key-32Characters1234567890";
-        let cbc = CBC(key, &key[..16]);
+        let cbc = CBC::new(key, &key[..16]);
 
         // 默认填充
         let cipher = cbc.encrypt(b"ILoveYiigo", None).unwrap();
@@ -177,7 +223,7 @@ mod tests {
     #[test]
     fn aes_ecb() {
         let key = b"AES256Key-32Characters1234567890";
-        let ecb = ECB(key);
+        let ecb = ECB::new(key);
 
         // 默认填充
         let cipher = ecb.encrypt(b"ILoveYiigo", None).unwrap();
@@ -200,7 +246,7 @@ mod tests {
     #[test]
     fn aes_gcm() {
         let key = b"AES256Key-32Characters1234567890";
-        let gcm = GCM(key, &key[..12]);
+        let gcm = GCM::new(key, &key[..12]);
 
         // 默认 tag_size
         let (cipher, tag) = gcm.encrypt(b"ILoveYiigo", b"IIInsomnia", None).unwrap();

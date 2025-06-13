@@ -11,6 +11,12 @@ pub fn now(offset: Option<time::UtcOffset>) -> time::OffsetDateTime {
 }
 
 /// 根据时间字符串生成时间对象
+///
+/// # Example
+///
+/// ```
+/// let time = times::from_str(times::DATE_TIME, "2023-07-12 13:45:13", None).unwrap();
+/// ```
 pub fn from_str(
     fmt: &str,
     datetime: &str,
@@ -23,6 +29,12 @@ pub fn from_str(
 }
 
 /// 根据Unix时间戳生成时间对象
+///
+/// # Example
+///
+/// ```
+/// let time = times::from_timestamp(1689140713, None).unwrap();
+/// ```
 pub fn from_timestamp(
     timestamp: i64,
     offset: Option<time::UtcOffset>,
@@ -36,6 +48,12 @@ pub fn from_timestamp(
 }
 
 /// Unix时间戳格式化
+///
+/// # Example
+///
+/// ```
+/// let time = times::to_string(times::DATE_TIME, 1689140713, None).unwrap();
+/// ```
 pub fn to_string(
     fmt: &str,
     timestamp: i64,
@@ -56,6 +74,12 @@ pub fn to_string(
 }
 
 /// 日期转Unix时间戳
+///
+/// # Example
+///
+/// ```
+/// let time = times::to_timestamp(times::DATE_TIME, "2023-07-12 13:45:13", None).unwrap();
+/// ```
 pub fn to_timestamp(
     fmt: &str,
     datetime: &str,

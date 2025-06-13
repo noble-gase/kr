@@ -4,42 +4,91 @@ use md5::Md5;
 use sha1::Sha1;
 use sha2::Sha256;
 
+/// 计算MD5
+///
+/// # Example
+///
+/// ```
+/// let hash = md5(b"shenghui");
+/// ```
 pub fn md5(b: &[u8]) -> String {
     let mut h = Md5::new();
     h.update(b);
     const_hex::encode(h.finalize())
 }
 
+/// 计算SHA1
+///
+/// # Example
+///
+/// ```
+/// let hash = sha1(b"shenghui");
+/// ```
 pub fn sha1(b: &[u8]) -> String {
     let mut h = Sha1::new();
     h.update(b);
     const_hex::encode(h.finalize())
 }
 
+/// 计算SHA256
+///
+/// # Example
+///
+/// ```
+/// let hash = sha256(b"shenghui");
+/// ```
 pub fn sha256(b: &[u8]) -> String {
     let mut h = Sha256::new();
     h.update(b);
     const_hex::encode(h.finalize())
 }
 
+/// 计算哈希
+///
+/// # Example
+///
+/// ```
+/// let hash = hash::<Md5>(b"shenghui");
+/// ```
 pub fn hash<D: Digest>(b: &[u8]) -> String {
     let mut h = D::new();
     h.update(b);
     const_hex::encode(h.finalize())
 }
 
+/// 计算HMAC-SHA1
+///
+/// # Example
+///
+/// ```
+/// let hash = hmac_sha1(b"key", b"shenghui");
+/// ```
 pub fn hmac_sha1(key: &[u8], b: &[u8]) -> String {
     let mut h = Hmac::<Sha1>::new_from_slice(key).unwrap();
     h.update(b);
     const_hex::encode(h.finalize().into_bytes())
 }
 
+/// 计算HMAC-SHA256
+///
+/// # Example
+///
+/// ```
+/// let hash = hmac_sha256(b"key", b"shenghui");
+/// ```
 pub fn hmac_sha256(key: &[u8], b: &[u8]) -> String {
     let mut h = Hmac::<Sha256>::new_from_slice(key).unwrap();
     h.update(b);
     const_hex::encode(h.finalize().into_bytes())
 }
 
+/// 计算HMAC
+///
+/// # Example
+///
+/// ```
+/// let hash = hmac::<Md5>(b"key", b"shenghui");
+/// ```
 pub fn hmac<D: Digest + BlockSizeUser>(key: &[u8], b: &[u8]) -> String {
     let mut h = SimpleHmac::<D>::new_from_slice(key).unwrap();
     h.update(b);
