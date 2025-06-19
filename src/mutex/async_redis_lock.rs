@@ -11,33 +11,34 @@ use crate::manager::bb8_redis;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::lock(pool, "key", 10, None).await?;
+/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), None).await?;
 /// if lock.is_none() {
-///     return Err("Operation is too frequent, please try again later")
+///     return Err("operation is too frequent, please try again later")
 /// }
 /// // do something
 /// // 释放锁
-/// lock.unwrap().unlock().await?;
+/// lock.unwrap().release().await?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::lock(pool, "key", 10, Some((3, Duration::from_millis(100)))).await?;
+/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100)))).await?;
 /// if lock.is_none() {
-///     return Err("Operation is too frequent, please try again later")
+///     return Err("operation is too frequent, please try again later")
 /// }
 /// // do something
 /// // 释放锁
-/// lock.unwrap().unlock().await?;
+/// lock.unwrap().release().await?;
 /// ```
 pub struct RedLock<'a> {
     pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
     key: String,
     ttl: u64,
     token: Option<String>,
+    prevent: bool,
 }
 
 impl<'a> RedLock<'a> {
     /// 获取锁
-    pub async fn lock(
+    pub async fn acquire(
         pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
         key: &str,
         ttl: time::Duration,
@@ -48,11 +49,12 @@ impl<'a> RedLock<'a> {
             key: key.to_string(),
             ttl: ttl.as_millis() as u64,
             token: None,
+            prevent: false,
         };
 
         if let Some((attempts, interval)) = retry {
             for i in 0..attempts {
-                red_lock._acquire().await?;
+                red_lock.set_nx().await?;
                 if red_lock.token.is_some() {
                     return Ok(Some(red_lock));
                 }
@@ -63,7 +65,7 @@ impl<'a> RedLock<'a> {
             return Ok(None);
         }
 
-        red_lock._acquire().await?;
+        red_lock.set_nx().await?;
         if red_lock.token.is_none() {
             return Ok(None);
         }
@@ -71,7 +73,7 @@ impl<'a> RedLock<'a> {
     }
 
     /// 手动释放锁
-    pub async fn unlock(&mut self) -> anyhow::Result<()> {
+    pub async fn release(&mut self) -> anyhow::Result<()> {
         if self.token.is_none() {
             return Ok(());
         }
@@ -87,7 +89,12 @@ impl<'a> RedLock<'a> {
         Ok(())
     }
 
-    async fn _acquire(&mut self) -> anyhow::Result<()> {
+    /// 阻止 `AsyncDrop` 自动释放锁
+    pub fn prevent(&mut self) {
+        self.prevent = true;
+    }
+
+    async fn set_nx(&mut self) -> anyhow::Result<()> {
         let mut conn = self.pool.get().await?;
         let opts = redis::SetOptions::default()
             .conditional_set(NX)
@@ -119,14 +126,14 @@ impl<'a> RedLock<'a> {
 // TODO: AsyncDrop
 // impl AsyncDrop for RedLock<'_> {
 //     fn drop(&mut self) {
-//         if self.token.is_none() {
+//         if self.prevent || self.token.is_none() {
 //             return;
 //         }
 
 //         // 释放锁
-//         let ret = self.unlock().await;
+//         let ret = self.release().await;
 //         if let Err(e) = ret {
-//             tracing::error!(err = ?e, "[mutex.red_async_lock] drop unlock(key={}) failed", self.key);
+//             tracing::error!(err = ?e, "[mutex.red_async_lock] drop release(key={}) failed", self.key);
 //         }
 //     }
 // }

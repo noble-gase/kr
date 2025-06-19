@@ -8,33 +8,34 @@ use uuid::Uuid;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::lock(pool, "key", Duration::from_secs(10), None)?;
+/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), None)?;
 /// if lock.is_none() {
-///     return Err("Operation is too frequent, please try again later")
+///     return Err("operation is too frequent, please try again later")
 /// }
 /// // do something
 /// // 释放锁
-/// lock.unwrap().unlock()?;
+/// lock.unwrap().release()?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::lock(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100))))?;
+/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100))))?;
 /// if lock.is_none() {
-///     return Err("Operation is too frequent, please try again later")
+///     return Err("operation is too frequent, please try again later")
 /// }
 /// // do something
 /// // 释放锁
-/// lock.unwrap().unlock()?;
+/// lock.unwrap().release()?;
 /// ```
 pub struct RedLock<'a> {
     pool: &'a r2d2::Pool<redis::Client>,
     key: String,
     ttl: u64,
     token: Option<String>,
+    prevent: bool,
 }
 
 impl<'a> RedLock<'a> {
     /// 获取锁
-    pub fn lock(
+    pub fn acquire(
         client: &'a r2d2::Pool<redis::Client>,
         key: &str,
         ttl: time::Duration,
@@ -45,12 +46,13 @@ impl<'a> RedLock<'a> {
             key: key.to_string(),
             ttl: ttl.as_millis() as u64,
             token: None,
+            prevent: false,
         };
 
         // 重试模式
         if let Some((attempts, interval)) = retry {
             for i in 0..attempts {
-                red_lock._acquire()?;
+                red_lock.set_nx()?;
                 if red_lock.token.is_some() {
                     return Ok(Some(red_lock));
                 }
@@ -62,7 +64,7 @@ impl<'a> RedLock<'a> {
         }
 
         // 一次性模式
-        red_lock._acquire()?;
+        red_lock.set_nx()?;
         if red_lock.token.is_none() {
             return Ok(None);
         }
@@ -70,7 +72,7 @@ impl<'a> RedLock<'a> {
     }
 
     /// 手动释放锁
-    pub fn unlock(&mut self) -> anyhow::Result<()> {
+    pub fn release(&mut self) -> anyhow::Result<()> {
         if self.token.is_none() {
             return Ok(());
         }
@@ -85,7 +87,12 @@ impl<'a> RedLock<'a> {
         Ok(())
     }
 
-    fn _acquire(&mut self) -> anyhow::Result<()> {
+    /// 阻止 `Drop` 自动释放锁
+    pub fn prevent(&mut self) {
+        self.prevent = true;
+    }
+
+    fn set_nx(&mut self) -> anyhow::Result<()> {
         let mut conn = self.pool.get()?;
         let opts = redis::SetOptions::default()
             .conditional_set(NX)
@@ -116,14 +123,14 @@ impl<'a> RedLock<'a> {
 /// 自动释放锁
 impl Drop for RedLock<'_> {
     fn drop(&mut self) {
-        if self.token.is_none() {
+        if self.prevent || self.token.is_none() {
             return;
         }
 
         // 释放锁
-        let ret = self.unlock();
+        let ret = self.release();
         if let Err(e) = ret {
-            tracing::error!(err = ?e, "[mutex.red_lock] drop unlock(key={}) failed", self.key);
+            tracing::error!(err = ?e, "[mutex.red_lock] drop release(key={}) failed", self.key);
         }
     }
 }
