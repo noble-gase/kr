@@ -2,9 +2,9 @@ pub mod async_redis_lock;
 pub mod redis_lock;
 
 pub const SCRIPT: &str = r#"
-if redis.call('get', KEYS[1]) == ARGV[1] then
-    return redis.call('del', KEYS[1])
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
 else
-    return 0
+	return 0
 end
 "#;
