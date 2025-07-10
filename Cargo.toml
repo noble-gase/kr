@@ -12,10 +12,6 @@ repository = "https://github.com/noble-gase/kr"
 name = "kr"
 path = "src/lib.rs"
 
-[features]
-axum = []
-salvo = []
-
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
