@@ -22,8 +22,6 @@ cargo add kr
 - 基于Redis的分布式锁
 - 基于 `bb8` 的Redis异步Manager
 - 生成API错误码的宏：`define_ok!` 和 `define_error_codes!`
-  - `feature = "salvo"`
-  - `feature = "axum"`
 
 ⚠️ `aes` 相关功能依赖 `openssl`
 
