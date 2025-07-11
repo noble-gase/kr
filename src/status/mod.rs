@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 #[derive(Serialize)]
-pub struct Reply<T>
+pub struct Status<T>
 where
     T: Serialize + Send,
 {
@@ -22,8 +22,8 @@ macro_rules! define_ok {
         where
             T: Serialize + Send,
         {
-            pub fn to_reply(self) -> Reply<T> {
-                Reply {
+            pub fn to_status(self) -> Status<T> {
+                Status {
                     code: $code,
                     msg: String::from($msg),
                     data: self.0,
@@ -60,8 +60,8 @@ macro_rules! define_error_codes {
                 Code::Custom(self.code(), msg.as_ref().to_string())
             }
 
-            pub fn to_reply(self) -> Reply<()> {
-                Reply {
+            pub fn to_status(self) -> Status<()> {
+                Status {
                     code: self.code(),
                     msg: self.to_string(),
                     data: None,
