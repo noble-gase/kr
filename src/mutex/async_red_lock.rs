@@ -11,24 +11,24 @@ use crate::manager::bb8_redis;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), None).await?;
+/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), None).await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something
+/// // do something ...
 /// // 释放锁
 /// lock.unwrap().release().await?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100)))).await?;
+/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100)))).await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something
+/// // do something ...
 /// // 释放锁
 /// lock.unwrap().release().await?;
 /// ```
-pub struct RedLock<'a> {
+pub struct AsyncRedLock<'a> {
     pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
     key: String,
     ttl: u64,
@@ -36,7 +36,7 @@ pub struct RedLock<'a> {
     prevent: bool,
 }
 
-impl<'a> RedLock<'a> {
+impl<'a> AsyncRedLock<'a> {
     /// 获取锁
     pub async fn acquire(
         pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
@@ -44,7 +44,7 @@ impl<'a> RedLock<'a> {
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
     ) -> anyhow::Result<Option<Self>> {
-        let mut red_lock = RedLock {
+        let mut red_lock = AsyncRedLock {
             pool,
             key: key.to_string(),
             ttl: ttl.as_millis() as u64,
@@ -124,7 +124,7 @@ impl<'a> RedLock<'a> {
 
 // 自动释放锁
 // TODO: AsyncDrop
-// impl AsyncDrop for RedLock<'_> {
+// impl AsyncDrop for AsyncRedLock<'_> {
 //     fn drop(&mut self) {
 //         if self.prevent || self.token.is_none() {
 //             return;
@@ -133,7 +133,7 @@ impl<'a> RedLock<'a> {
 //         // 释放锁
 //         let ret = self.release().await;
 //         if let Err(e) = ret {
-//             tracing::error!(err = ?e, "[mutex.red_async_lock] drop release(key={}) failed", self.key);
+//             tracing::error!(err = ?e, "[mutex.async_red_lock] drop release(key={}) failed", self.key);
 //         }
 //     }
 // }

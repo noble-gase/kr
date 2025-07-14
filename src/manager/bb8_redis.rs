@@ -14,7 +14,7 @@ impl RedisConnectionManager {
 /// # Example
 ///
 /// ```
-/// let manager = bb8_redis::RedisConnectionManager::new(redis::Client::open("redis://127.0.0.1:6379").unwrap());
+/// let manager = RedisConnectionManager::new(redis::Client::open("redis://127.0.0.1:6379").unwrap());
 /// ```
 impl bb8::ManageConnection for RedisConnectionManager {
     type Connection = redis::aio::MultiplexedConnection;

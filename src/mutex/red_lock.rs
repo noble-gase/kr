@@ -12,7 +12,7 @@ use uuid::Uuid;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something
+/// // do something ...
 /// // 释放锁
 /// lock.unwrap().release()?;
 ///
@@ -21,7 +21,7 @@ use uuid::Uuid;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something
+/// // do something ...
 /// // 释放锁
 /// lock.unwrap().release()?;
 /// ```

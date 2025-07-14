@@ -1,11 +1,11 @@
 use redis::{cluster, cluster_async};
 
 #[derive(Clone)]
-pub struct RedisConnectionManager {
+pub struct RedisClusterManager {
     client: cluster::ClusterClient,
 }
 
-impl RedisConnectionManager {
+impl RedisClusterManager {
     pub fn new(c: cluster::ClusterClient) -> Self {
         Self { client: c }
     }
@@ -16,9 +16,9 @@ impl RedisConnectionManager {
 /// # Example
 ///
 /// ```
-/// let manager = bb8_redis_cluster::RedisConnectionManager::new(redis::cluster::ClusterClient::new(vec!["redis://127.0.0.1:6379"]).unwrap());
+/// let manager = RedisClusterManager::new(redis::cluster::ClusterClient::new(vec!["redis://127.0.0.1:6379"]).unwrap());
 /// ```
-impl bb8::ManageConnection for RedisConnectionManager {
+impl bb8::ManageConnection for RedisClusterManager {
     type Connection = cluster_async::ClusterConnection;
     type Error = redis::RedisError;
 
