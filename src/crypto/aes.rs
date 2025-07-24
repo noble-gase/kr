@@ -203,21 +203,21 @@ mod tests {
         let cbc = CBC::new(key, &key[..16]);
 
         // 默认填充
-        let cipher = cbc.encrypt(b"ILoveYiigo", None).unwrap();
-        assert_eq!(BASE64_STANDARD.encode(&cipher), "kyJ6t0cpUYpoWaewhTwDwQ==");
+        let cipher = cbc.encrypt(b"ILoveRust", None).unwrap();
+        assert_eq!(BASE64_STANDARD.encode(&cipher), "aXgPqNmb9UuorpPO/44xZA==");
 
         let plain = cbc.decrypt(&cipher).unwrap();
-        assert_eq!(plain, b"ILoveYiigo");
+        assert_eq!(plain, b"ILoveRust");
 
         // 32字节填充
-        let cipher2 = cbc.encrypt(b"ILoveYiigo", Some(32)).unwrap();
+        let cipher2 = cbc.encrypt(b"ILoveRust", Some(32)).unwrap();
         assert_eq!(
             BASE64_STANDARD.encode(&cipher2),
-            "hSXsKUV2fbG8F2JlVcnra876xvKxyXwoJvaebTtWGzQ="
+            "6lj8Yn5eO5H9Sj2cEAe01MF+deF8VDokuCv6nLb9Cw4="
         );
 
         let plain2 = cbc.decrypt(&cipher2).unwrap();
-        assert_eq!(plain2, b"ILoveYiigo");
+        assert_eq!(plain2, b"ILoveRust");
     }
 
     #[test]
@@ -226,21 +226,21 @@ mod tests {
         let ecb = ECB::new(key);
 
         // 默认填充
-        let cipher = ecb.encrypt(b"ILoveYiigo", None).unwrap();
-        assert_eq!(BASE64_STANDARD.encode(&cipher), "8+evCMirn78a5l2mCCdJug==");
+        let cipher = ecb.encrypt(b"ILoveRust", None).unwrap();
+        assert_eq!(BASE64_STANDARD.encode(&cipher), "q0zwz5HYiN8b0h4mPaRCZw==");
 
         let plain = ecb.decrypt(&cipher).unwrap();
-        assert_eq!(plain, b"ILoveYiigo");
+        assert_eq!(plain, b"ILoveRust");
 
         // 32字节填充
-        let cipher2 = ecb.encrypt(b"ILoveYiigo", Some(32)).unwrap();
+        let cipher2 = ecb.encrypt(b"ILoveRust", Some(32)).unwrap();
         assert_eq!(
             BASE64_STANDARD.encode(&cipher2),
-            "FqrgSRCY4zBRYBOg4Pe3Vbpl6eN3wP/L8phJTP4aWFE="
+            "3kcomMJ4/+z1CNQsuVKOqob5I9/o6GPWU0rcVuA+rn0="
         );
 
         let plain2 = ecb.decrypt(&cipher2).unwrap();
-        assert_eq!(plain2, b"ILoveYiigo");
+        assert_eq!(plain2, b"ILoveRust");
     }
 
     #[test]
@@ -249,19 +249,19 @@ mod tests {
         let gcm = GCM::new(key, &key[..12]);
 
         // 默认 tag_size
-        let (cipher, tag) = gcm.encrypt(b"ILoveYiigo", b"IIInsomnia", None).unwrap();
-        assert_eq!(BASE64_STANDARD.encode(&cipher), "qciumnRZKY42HQ==");
-        assert_eq!(BASE64_STANDARD.encode(&tag), "WOeD9xSN3RX44lkHpnBEXw==");
+        let (cipher, tag) = gcm.encrypt(b"ILoveRust", b"IIInsomnia", None).unwrap();
+        assert_eq!(BASE64_STANDARD.encode(&cipher), "qciumnRSNZQl");
+        assert_eq!(BASE64_STANDARD.encode(&tag), "gQgezLrbimMH6tC7VsuyPg==");
 
         let plain = gcm.decrypt(&cipher, b"IIInsomnia", &tag).unwrap();
-        assert_eq!(plain, b"ILoveYiigo");
+        assert_eq!(plain, b"ILoveRust");
 
         // 指定 tag_size
-        let (cipher2, tag2) = gcm.encrypt(b"ILoveYiigo", b"IIInsomnia", Some(12)).unwrap();
-        assert_eq!(BASE64_STANDARD.encode(&cipher2), "qciumnRZKY42HQ==");
-        assert_eq!(BASE64_STANDARD.encode(&tag2), "WOeD9xSN3RX44lkH");
+        let (cipher2, tag2) = gcm.encrypt(b"ILoveRust", b"IIInsomnia", Some(12)).unwrap();
+        assert_eq!(BASE64_STANDARD.encode(&cipher2), "qciumnRSNZQl");
+        assert_eq!(BASE64_STANDARD.encode(&tag2), "gQgezLrbimMH6tC7");
 
         let plain = gcm.decrypt(&cipher2, b"IIInsomnia", &tag2).unwrap();
-        assert_eq!(plain, b"ILoveYiigo");
+        assert_eq!(plain, b"ILoveRust");
     }
 }
