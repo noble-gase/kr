@@ -39,4 +39,5 @@ redis = { version = "0.31", features = [
 ] }
 r2d2 = "0.8"
 bb8 = "0.9"
+bon = "3.6"
 serde = { version = "1.0", features = ["derive"] }

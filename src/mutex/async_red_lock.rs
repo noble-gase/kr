@@ -1,3 +1,4 @@
+use bon::bon;
 use redis::{AsyncCommands, ExistenceCheck::NX, SetExpiry::PX};
 use std::time;
 use tokio::time::sleep;
@@ -11,7 +12,7 @@ use crate::manager::bb8_redis;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), None).await?;
+/// let mut lock = AsyncRedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).call().await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -20,7 +21,7 @@ use crate::manager::bb8_redis;
 /// lock.unwrap().release().await?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100)))).await?;
+/// let mut lock = AsyncRedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).retry((3, Duration::from_millis(100))).call().await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -36,8 +37,10 @@ pub struct AsyncRedLock<'a> {
     prevent: bool,
 }
 
+#[bon]
 impl<'a> AsyncRedLock<'a> {
     /// 获取锁
+    #[builder]
     pub async fn acquire(
         pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
         key: &str,
@@ -53,12 +56,13 @@ impl<'a> AsyncRedLock<'a> {
         };
 
         if let Some((attempts, interval)) = retry {
+            let threshold = attempts - 1;
             for i in 0..attempts {
                 red_lock.set_nx().await?;
                 if red_lock.token.is_some() {
                     return Ok(Some(red_lock));
                 }
-                if i < attempts - 1 {
+                if i < threshold {
                     sleep(interval).await;
                 }
             }

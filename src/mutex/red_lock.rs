@@ -1,3 +1,4 @@
+use bon::bon;
 use redis::{Commands, ExistenceCheck::NX, SetExpiry::PX};
 use std::{thread, time};
 use uuid::Uuid;
@@ -8,7 +9,7 @@ use uuid::Uuid;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), None)?;
+/// let mut lock = RedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).call()?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -17,7 +18,7 @@ use uuid::Uuid;
 /// lock.unwrap().release()?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100))))?;
+/// let mut lock = RedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).retry((3, Duration::from_millis(100))).call()?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -33,8 +34,10 @@ pub struct RedLock<'a> {
     prevent: bool,
 }
 
+#[bon]
 impl<'a> RedLock<'a> {
     /// 获取锁
+    #[builder]
     pub fn acquire(
         client: &'a r2d2::Pool<redis::Client>,
         key: &str,
@@ -51,12 +54,13 @@ impl<'a> RedLock<'a> {
 
         // 重试模式
         if let Some((attempts, interval)) = retry {
+            let threshold = attempts - 1;
             for i in 0..attempts {
                 red_lock.set_nx()?;
                 if red_lock.token.is_some() {
                     return Ok(Some(red_lock));
                 }
-                if i < attempts - 1 {
+                if i < threshold {
                     thread::sleep(interval);
                 }
             }

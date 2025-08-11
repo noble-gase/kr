@@ -56,7 +56,7 @@ macro_rules! define_error_codes {
                 }
             }
 
-            pub fn with_msg<T: AsRef<str>>(&self, msg: T) -> Self {
+            pub fn with_msg(&self, msg: impl AsRef<str>) -> Self {
                 Code::Custom(self.code(), msg.as_ref().to_string())
             }
 

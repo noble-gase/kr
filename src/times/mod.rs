@@ -1,4 +1,5 @@
 use anyhow::Ok;
+use bon::builder;
 use time::macros::offset;
 
 pub const DATE: &str = "[year]-[month]-[day]";
@@ -15,15 +16,16 @@ pub fn now(offset: Option<time::UtcOffset>) -> time::OffsetDateTime {
 /// # Example
 ///
 /// ```
-/// let time = times::from_str(times::DATE_TIME, "2023-07-12 13:45:13", None).unwrap();
+/// let time = times::parse().datetime("2023-07-12 00:00:00").format(times::DATE_TIME).call().unwrap();
 /// ```
-pub fn from_str(
-    fmt: &str,
-    datetime: &str,
+#[builder]
+pub fn parse(
+    datetime: impl AsRef<str>,
+    format: Option<&str>,
     offset: Option<time::UtcOffset>,
 ) -> anyhow::Result<time::OffsetDateTime> {
-    let format = time::format_description::parse(fmt)?;
-    let v = time::PrimitiveDateTime::parse(datetime, &format)?
+    let desc = time::format_description::parse(format.unwrap_or(DATE_TIME))?;
+    let v = time::PrimitiveDateTime::parse(datetime.as_ref(), &desc)?
         .assume_offset(offset.unwrap_or(offset!(+8)));
     Ok(v)
 }
@@ -33,8 +35,9 @@ pub fn from_str(
 /// # Example
 ///
 /// ```
-/// let time = times::from_timestamp(1689140713, None).unwrap();
+/// let time = times::from_timestamp().timestamp(1689140713).call().unwrap();
 /// ```
+#[builder]
 pub fn from_timestamp(
     timestamp: i64,
     offset: Option<time::UtcOffset>,
@@ -52,24 +55,25 @@ pub fn from_timestamp(
 /// # Example
 ///
 /// ```
-/// let time = times::to_string(times::DATE_TIME, 1689140713, None).unwrap();
+/// let time = times::to_string().timestamp(1689140713).format(times::DATE_TIME).call().unwrap();
 /// ```
+#[builder]
 pub fn to_string(
-    fmt: &str,
     timestamp: i64,
+    format: Option<&str>,
     offset: Option<time::UtcOffset>,
 ) -> anyhow::Result<String> {
-    let format = time::format_description::parse(fmt)?;
+    let desc = time::format_description::parse(format.unwrap_or(DATE_TIME))?;
     let off = offset.unwrap_or(offset!(+8));
     if timestamp < 0 {
         let v = time::OffsetDateTime::now_utc()
             .to_offset(off)
-            .format(&format)?;
+            .format(&desc)?;
         return Ok(v);
     }
     let v = time::OffsetDateTime::from_unix_timestamp(timestamp)?
         .to_offset(off)
-        .format(&format)?;
+        .format(&desc)?;
     Ok(v)
 }
 
@@ -78,18 +82,19 @@ pub fn to_string(
 /// # Example
 ///
 /// ```
-/// let time = times::to_timestamp(times::DATE_TIME, "2023-07-12 13:45:13", None).unwrap();
+/// let time = times::to_timestamp().datetime("2023-07-12 13:45:13").format(times::DATE_TIME).call().unwrap();
 /// ```
+#[builder]
 pub fn to_timestamp(
-    fmt: &str,
-    datetime: &str,
+    datetime: impl AsRef<str>,
+    format: Option<&str>,
     offset: Option<time::UtcOffset>,
 ) -> anyhow::Result<i64> {
-    if datetime.is_empty() {
+    if datetime.as_ref().is_empty() {
         return Ok(0);
     }
-    let format = time::format_description::parse(fmt)?;
-    let v = time::PrimitiveDateTime::parse(datetime, &format)?
+    let desc = time::format_description::parse(format.unwrap_or(DATE_TIME))?;
+    let v = time::PrimitiveDateTime::parse(datetime.as_ref(), &desc)?
         .assume_offset(offset.unwrap_or(offset!(+8)))
         .unix_timestamp();
     Ok(v)
@@ -100,40 +105,44 @@ mod tests {
     use crate::times;
 
     #[test]
-    fn from_str() {
+    fn parse() {
         // date
         assert_eq!(
-            times::from_str(times::DATE_TIME, "2023-07-12 00:00:00", None)
+            times::parse()
+                .datetime("2023-07-12 00:00:00")
+                .format(times::DATE_TIME)
+                .call()
                 .unwrap()
                 .unix_timestamp(),
             1689091200
         );
         assert_eq!(
-            times::from_str(
-                "[year]/[month]/[day] [hour]:[minute]:[second]",
-                "2023/07/12 00:00:00",
-                None
-            )
-            .unwrap()
-            .unix_timestamp(),
+            times::parse()
+                .datetime("2023/07/12 00:00:00")
+                .format("[year]/[month]/[day] [hour]:[minute]:[second]")
+                .call()
+                .unwrap()
+                .unix_timestamp(),
             1689091200
         );
 
         // datetime
         assert_eq!(
-            times::from_str(times::DATE_TIME, "2023-07-12 13:45:13", None)
+            times::parse()
+                .datetime("2023-07-12 13:45:13")
+                .format(times::DATE_TIME)
+                .call()
                 .unwrap()
                 .unix_timestamp(),
             1689140713
         );
         assert_eq!(
-            times::from_str(
-                "[year]/[month]/[day] [hour]:[minute]:[second]",
-                "2023/07/12 13:45:13",
-                None
-            )
-            .unwrap()
-            .unix_timestamp(),
+            times::parse()
+                .datetime("2023/07/12 13:45:13")
+                .format("[year]/[month]/[day] [hour]:[minute]:[second]")
+                .call()
+                .unwrap()
+                .unix_timestamp(),
             1689140713
         );
     }
@@ -141,7 +150,9 @@ mod tests {
     #[test]
     fn from_timestamp() {
         assert_eq!(
-            times::from_timestamp(1689140713, None)
+            times::from_timestamp()
+                .timestamp(1689140713)
+                .call()
                 .unwrap()
                 .unix_timestamp(),
             1689140713
@@ -152,36 +163,55 @@ mod tests {
     fn time_to_str() {
         // date
         assert_eq!(
-            times::to_string(times::DATE, 1689140713, None).unwrap(),
+            times::to_string()
+                .format(times::DATE)
+                .timestamp(1689140713)
+                .call()
+                .unwrap(),
             "2023-07-12"
         );
         assert_eq!(
-            times::to_string("[year]/[month]/[day]", 1689140713, None).unwrap(),
+            times::to_string()
+                .format("[year]/[month]/[day]")
+                .timestamp(1689140713)
+                .call()
+                .unwrap(),
             "2023/07/12"
         );
 
         // time
         assert_eq!(
-            times::to_string(times::TIME, 1689140713, None).unwrap(),
+            times::to_string()
+                .format(times::TIME)
+                .timestamp(1689140713)
+                .call()
+                .unwrap(),
             "13:45:13"
         );
         assert_eq!(
-            times::to_string("[hour]-[minute]-[second]", 1689140713, None).unwrap(),
+            times::to_string()
+                .format("[hour]-[minute]-[second]")
+                .timestamp(1689140713)
+                .call()
+                .unwrap(),
             "13-45-13"
         );
 
         // datetime
         assert_eq!(
-            times::to_string(times::DATE_TIME, 1689140713, None).unwrap(),
+            times::to_string()
+                .format(times::DATE_TIME)
+                .timestamp(1689140713)
+                .call()
+                .unwrap(),
             "2023-07-12 13:45:13"
         );
         assert_eq!(
-            times::to_string(
-                "[year]/[month]/[day] [hour]:[minute]:[second]",
-                1689140713,
-                None
-            )
-            .unwrap(),
+            times::to_string()
+                .format("[year]/[month]/[day] [hour]:[minute]:[second]")
+                .timestamp(1689140713)
+                .call()
+                .unwrap(),
             "2023/07/12 13:45:13"
         );
     }
@@ -190,40 +220,45 @@ mod tests {
     fn str_to_time() {
         // date
         assert_eq!(
-            times::to_timestamp(times::DATE_TIME, "2023-07-12 00:00:00", None).unwrap(),
+            times::to_timestamp()
+                .format(times::DATE_TIME)
+                .datetime("2023-07-12 00:00:00")
+                .call()
+                .unwrap(),
             1689091200
         );
         assert_eq!(
-            times::to_timestamp(
-                "[year]/[month]/[day] [hour]:[minute]:[second]",
-                "2023/07/12 00:00:00",
-                None
-            )
-            .unwrap(),
+            times::to_timestamp()
+                .format("[year]/[month]/[day] [hour]:[minute]:[second]")
+                .datetime("2023/07/12 00:00:00")
+                .call()
+                .unwrap(),
             1689091200
         );
 
         // datetime
         assert_eq!(
-            times::to_timestamp(
-                "[year]-[month]-[day] [hour]:[minute]",
-                "2023-07-12 13:45",
-                None
-            )
-            .unwrap(),
+            times::to_timestamp()
+                .format("[year]-[month]-[day] [hour]:[minute]")
+                .datetime("2023-07-12 13:45")
+                .call()
+                .unwrap(),
             1689140700
         );
         assert_eq!(
-            times::to_timestamp(times::DATE_TIME, "2023-07-12 13:45:13", None).unwrap(),
+            times::to_timestamp()
+                .format(times::DATE_TIME)
+                .datetime("2023-07-12 13:45:13")
+                .call()
+                .unwrap(),
             1689140713
         );
         assert_eq!(
-            times::to_timestamp(
-                "[year]/[month]/[day] [hour]:[minute]:[second]",
-                "2023/07/12 13:45:13",
-                None
-            )
-            .unwrap(),
+            times::to_timestamp()
+                .format("[year]/[month]/[day] [hour]:[minute]:[second]")
+                .datetime("2023/07/12 13:45:13")
+                .call()
+                .unwrap(),
             1689140713
         );
     }
