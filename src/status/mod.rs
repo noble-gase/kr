@@ -56,8 +56,8 @@ macro_rules! define_error_codes {
                 }
             }
 
-            pub fn with_msg(&self, msg: impl AsRef<str>) -> Self {
-                Code::Custom(self.code(), msg.as_ref().to_string())
+            pub fn with_msg(&self, msg: impl Into<String>) -> Self {
+                Code::Custom(self.code(), msg.into())
             }
 
             pub fn to_status(self) -> Status<()> {

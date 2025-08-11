@@ -43,19 +43,19 @@ impl<'a> AsyncRedLock<'a> {
     #[builder]
     pub async fn acquire(
         pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
-        key: &str,
+        #[builder(into)] key: String,
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
     ) -> anyhow::Result<Option<Self>> {
         let mut red_lock = AsyncRedLock {
             pool,
-            key: key.to_string(),
+            key,
             ttl: ttl.as_millis() as u64,
             token: None,
             prevent: false,
         };
 
-        if let Some((attempts, interval)) = retry {
+        if let Some((attempts, duration)) = retry {
             let threshold = attempts - 1;
             for i in 0..attempts {
                 red_lock.set_nx().await?;
@@ -63,7 +63,7 @@ impl<'a> AsyncRedLock<'a> {
                     return Ok(Some(red_lock));
                 }
                 if i < threshold {
-                    sleep(interval).await;
+                    sleep(duration).await;
                 }
             }
             return Ok(None);

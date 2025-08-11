@@ -39,21 +39,21 @@ impl<'a> RedLock<'a> {
     /// 获取锁
     #[builder]
     pub fn acquire(
-        client: &'a r2d2::Pool<redis::Client>,
-        key: &str,
+        pool: &'a r2d2::Pool<redis::Client>,
+        #[builder(into)] key: String,
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
     ) -> anyhow::Result<Option<Self>> {
         let mut red_lock = RedLock {
-            pool: client,
-            key: key.to_string(),
+            pool,
+            key,
             ttl: ttl.as_millis() as u64,
             token: None,
             prevent: false,
         };
 
         // 重试模式
-        if let Some((attempts, interval)) = retry {
+        if let Some((attempts, duration)) = retry {
             let threshold = attempts - 1;
             for i in 0..attempts {
                 red_lock.set_nx()?;
@@ -61,7 +61,7 @@ impl<'a> RedLock<'a> {
                     return Ok(Some(red_lock));
                 }
                 if i < threshold {
-                    thread::sleep(interval);
+                    thread::sleep(duration);
                 }
             }
             return Ok(None);
@@ -136,5 +136,22 @@ impl Drop for RedLock<'_> {
         if let Err(e) = ret {
             tracing::error!(err = ?e, "[mutex.red_lock] drop release(key={}) failed", self.key);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_red_lock() {
+        let pool = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1:6379").unwrap()).unwrap();
+        let lock = RedLock::acquire()
+            .pool(&pool)
+            .key("test")
+            .ttl(time::Duration::from_secs(10))
+            .call()
+            .unwrap();
+        assert!(lock.is_some());
     }
 }
