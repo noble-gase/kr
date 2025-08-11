@@ -141,3 +141,28 @@ impl<'a> AsyncRedLock<'a> {
 //         }
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use crate::manager::bb8_redis::RedisConnectionManager;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_async_red_lock() {
+        let pool = bb8::Pool::builder()
+            .build(RedisConnectionManager::new(
+                redis::Client::open("redis://127.0.0.1:6379").unwrap(),
+            ))
+            .await
+            .unwrap();
+        let lock = AsyncRedLock::acquire()
+            .pool(&pool)
+            .key("test")
+            .ttl(time::Duration::from_secs(10))
+            .call()
+            .await
+            .unwrap();
+        assert!(lock.is_some());
+    }
+}
