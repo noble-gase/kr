@@ -2,8 +2,10 @@
 name = "kr"
 version = "0.4.0"
 edition = "2021"
+authors = ["ShengHui <847713844@qq.com>"]
 description = "Rust development utility library"
 keywords = ["crypto", "aes", "hash", "time", "lock", "redis-lock"]
+documentation = "https://docs.rs/kr"
 license = "MIT"
 repository = "https://github.com/noble-gase/kr"
 
