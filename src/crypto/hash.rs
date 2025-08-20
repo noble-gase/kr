@@ -11,10 +11,10 @@ use crate::crypto::HashOutput;
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = md5::<String>("shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = md5::<Vec<u8>>(b"shenghui");
 /// ```
 pub fn md5<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
@@ -28,10 +28,10 @@ pub fn md5<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = sha1::<String>("shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = sha1::<Vec<u8>>(b"shenghui");
 /// ```
 pub fn sha1<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
@@ -45,10 +45,10 @@ pub fn sha1<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = sha256::<String>("shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = sha256::<Vec<u8>>(b"shenghui");
 /// ```
 pub fn sha256<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
@@ -62,10 +62,10 @@ pub fn sha256<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = hash::<Md5, String>("shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = hash::<Md5, Vec<u8>>(b"shenghui");
 /// ```
 pub fn hash<D: Digest, T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
@@ -79,10 +79,10 @@ pub fn hash<D: Digest, T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = hmac_sha1::<String>("key", "shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = hmac_sha1::<Vec<u8>>(b"key", b"shenghui");
 /// ```
 pub fn hmac_sha1<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -> T::Output {
@@ -96,10 +96,10 @@ pub fn hmac_sha1<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = hmac_sha256::<String>("key", "shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = hmac_sha256::<Vec<u8>>(b"key", b"shenghui");
 /// ```
 pub fn hmac_sha256<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -> T::Output {
@@ -113,10 +113,10 @@ pub fn hmac_sha256<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>)
 /// # Example
 ///
 /// ```
-/// # String
+/// // String
 /// let h = hmac::<Md5, String>("key", "shenghui");
 ///
-/// # Vec<u8>
+/// // Vec<u8>
 /// let h = hmac::<Md5, Vec<u8>>(b"key", b"shenghui");
 /// ```
 pub fn hmac<D: Digest + BlockSizeUser, T: HashOutput>(
