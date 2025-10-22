@@ -11,11 +11,11 @@
 cargo add kr
 ```
 
-## 模块
+## kr-core
 
-### kr-core
+> 核心 Crate
 
-> 核心模块
+#### 功能
 
 - AES
   - CBC
@@ -29,11 +29,11 @@ cargo add kr
 
 ⚠️ `aes` 相关功能依赖 `openssl`
 
-### kr-macros
+## kr-macros
 
-> 宏定义模块
+> 宏定义 Crate
 
-派生宏：Model
+#### 派生宏：Model
 
 - 使用
 
