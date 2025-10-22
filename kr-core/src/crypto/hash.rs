@@ -20,7 +20,9 @@ use crate::crypto::HashOutput;
 pub fn md5<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
     let mut h = Md5::new();
     h.update(data);
-    T::from_bytes(h.finalize().as_slice())
+
+    let b: Vec<u8> = h.finalize().into_iter().collect();
+    T::from_bytes(b)
 }
 
 /// 计算SHA1
@@ -37,7 +39,9 @@ pub fn md5<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 pub fn sha1<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
     let mut h = Sha1::new();
     h.update(data);
-    T::from_bytes(h.finalize().as_slice())
+
+    let b: Vec<u8> = h.finalize().into_iter().collect();
+    T::from_bytes(b)
 }
 
 /// 计算SHA256
@@ -54,7 +58,9 @@ pub fn sha1<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 pub fn sha256<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
     let mut h = Sha256::new();
     h.update(data);
-    T::from_bytes(h.finalize().as_slice())
+
+    let b: Vec<u8> = h.finalize().into_iter().collect();
+    T::from_bytes(b)
 }
 
 /// 计算哈希
@@ -71,7 +77,9 @@ pub fn sha256<T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 pub fn hash<D: Digest, T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
     let mut h = D::new();
     h.update(data);
-    T::from_bytes(h.finalize().as_slice())
+
+    let b: Vec<u8> = h.finalize().into_iter().collect();
+    T::from_bytes(b)
 }
 
 /// 计算HMAC-SHA1
@@ -88,7 +96,9 @@ pub fn hash<D: Digest, T: HashOutput>(data: impl AsRef<[u8]>) -> T::Output {
 pub fn hmac_sha1<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -> T::Output {
     let mut h = Hmac::<Sha1>::new_from_slice(key.as_ref()).unwrap();
     h.update(data.as_ref());
-    T::from_bytes(h.finalize().into_bytes().as_slice())
+
+    let b: Vec<u8> = h.finalize().into_bytes().into_iter().collect::<Vec<u8>>();
+    T::from_bytes(b)
 }
 
 /// 计算HMAC-SHA256
@@ -105,7 +115,9 @@ pub fn hmac_sha1<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -
 pub fn hmac_sha256<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -> T::Output {
     let mut h = Hmac::<Sha256>::new_from_slice(key.as_ref()).unwrap();
     h.update(data.as_ref());
-    T::from_bytes(h.finalize().into_bytes().as_slice())
+
+    let b: Vec<u8> = h.finalize().into_bytes().into_iter().collect::<Vec<u8>>();
+    T::from_bytes(b)
 }
 
 /// 计算HMAC
@@ -125,7 +137,7 @@ pub fn hmac<D: Digest + BlockSizeUser, T: HashOutput>(
 ) -> T::Output {
     let mut h = SimpleHmac::<D>::new_from_slice(key.as_ref()).unwrap();
     h.update(data.as_ref());
-    T::from_bytes(h.finalize().into_bytes().as_slice())
+    T::from_bytes(h.finalize().into_bytes().into_iter().collect::<Vec<u8>>())
 }
 
 #[cfg(test)]
