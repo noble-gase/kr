@@ -13,8 +13,6 @@ cargo add kr
 
 ## kr-core
 
-> 核心 Crate
-
 #### 功能
 
 - AES
@@ -31,8 +29,6 @@ cargo add kr
 
 ## kr-macros
 
-> 宏定义 Crate
-
 #### 派生宏：Model
 
 - 使用
@@ -43,10 +39,14 @@ cargo add kr
 #[partial(UserBrief (id, name), derive(Copy, Debug))] // 包含字段
 pub struct User {
     pub id: i64,
+
+    #[sqlx(rename = "username")]
     pub name: String,
+
     pub email: String,
     pub phone: String,
     pub created_at: String,
+    pub updated_at: String,
 }
 ```
 
@@ -56,13 +56,19 @@ pub struct User {
 #[derive(sqlx::FromRow)]
 pub struct UserLite {
     pub id: i64,
+
+    #[sqlx(rename = "username")]
     pub name: String,
+
     pub created_at: String,
+    pub updated_at: String,
 }
 
-#[derive(Copy, Debug, sqlx::FromRow)]
+#[derive(sqlx::FromRow, Copy, Debug)]
 pub struct UserBrief {
     pub id: i64,
+
+    #[sqlx(rename = "username")]
     pub name: String,
 }
 ```

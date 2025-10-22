@@ -25,7 +25,7 @@ pub fn expand_partial_model(input: TokenStream) -> TokenStream {
                     let target_ident = &p.target;
 
                     // 根据 include/exclude 模式筛选字段
-                    let fields_to_keep: Vec<_> = fields
+                    let keep_fields: Vec<_> = fields
                         .iter()
                         .filter(|f| {
                             let ident = f.ident.as_ref().unwrap();
@@ -37,16 +37,23 @@ pub fn expand_partial_model(input: TokenStream) -> TokenStream {
                         })
                         .collect();
 
-                    // 生成字段定义
-                    let new_fields = fields_to_keep.iter().map(|f| {
+                    // 生成字段定义（保留属性）
+                    let gen_fields = keep_fields.iter().map(|f| {
                         let ident = f.ident.as_ref().unwrap();
                         let ty = &f.ty;
-                        quote! { pub #ident: #ty }
+                        let attrs = &f.attrs;
+                        quote! {
+                            #(#attrs)*
+                            pub #ident: #ty
+                        }
                     });
 
-                    // 合并 derives: 用户自定义 + 默认(sqlx::FromRow)
-                    let mut derives = p.derives.clone();
+                    // 合并 derives: 默认(sqlx::FromRow) + 用户自定义
+                    let mut derives = Vec::new();
                     derives.push(syn::parse_quote!(sqlx::FromRow));
+                    for d in p.derives {
+                        derives.push(d);
+                    }
                     let derive_attr = quote! {
                         #[derive(#(#derives),*)]
                     };
@@ -54,7 +61,7 @@ pub fn expand_partial_model(input: TokenStream) -> TokenStream {
                     generated.push(quote! {
                         #derive_attr
                         pub struct #target_ident {
-                            #(#new_fields,)*
+                            #(#gen_fields,)*
                         }
                     });
                 }
