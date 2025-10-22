@@ -4,8 +4,6 @@ description = "Macros of kr, the rust development toolkit. Not intended to be us
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-keywords.workspace = true
-documentation.workspace = true
 license.workspace = true
 repository.workspace = true
 
