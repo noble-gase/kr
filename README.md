@@ -8,7 +8,7 @@
 ## 安装
 
 ```shell
-cargo add kr
+cargo add kr --features macros
 ```
 
 ## kr-core
