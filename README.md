@@ -55,14 +55,14 @@ pub struct User {
 ```rust
 #[derive(sqlx::FromRow)]
 pub struct UserLite {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
     pub created_at: String,
 }
 
 #[derive(Copy, Debug, sqlx::FromRow)]
 pub struct UserBrief {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 ```
