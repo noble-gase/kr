@@ -12,7 +12,7 @@ repository = "https://github.com/noble-gase/kr"
 
 [package]
 name = "kr"
-description = "Rust development utility library"
+description = "The Rust Development Toolkit"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

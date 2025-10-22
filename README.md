@@ -3,7 +3,7 @@
 [<img alt="crates.io" src="https://img.shields.io/crates/v/kr.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/kr)
 [<img alt="MIT" src="http://img.shields.io/badge/license-MIT-brightgreen.svg?style=for-the-badge" height="20">](http://opensource.org/licenses/MIT)
 
-[氪-Kr] Rust开发实用库
+[氪-Kr] Rust开发工具包
 
 ## 安装
 

@@ -1,6 +1,6 @@
 [package]
 name = "kr-macros"
-description = "Macros for kr, the rust development utility library. Not intended to be used directly."
+description = "Macros of kr, the rust development toolkit. Not intended to be used directly."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
