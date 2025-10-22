@@ -26,8 +26,8 @@ default = []
 macros = ["kr-macros"]
 
 [workspace.dependencies]
-kr-core = { path = "kr-core", version = "0.5.0" }
-kr-macros = { path = "kr-macros", version = "0.5.0" }
+kr-core = { path = "kr-core", version = "0.5.1" }
+kr-macros = { path = "kr-macros", version = "0.5.1" }
 
 [dependencies]
 kr-core = { workspace = true }
