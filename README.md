@@ -42,7 +42,7 @@ cargo add kr
 #[partial(UserLite !(email, phone))] // 排除字段
 #[partial(UserBrief (id, name), derive(Copy, Debug))] // 包含字段
 pub struct User {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
     pub email: String,
     pub phone: String,
