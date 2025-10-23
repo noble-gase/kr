@@ -5,7 +5,7 @@ use syn::DeriveInput;
 
 use crate::derives::PartialAttr;
 
-pub fn expand_partial_model(input: TokenStream) -> TokenStream {
+pub fn expand_sqlx_model(input: TokenStream) -> TokenStream {
     let input: DeriveInput = syn::parse_macro_input!(input as DeriveInput);
     let fields = match &input.data {
         syn::Data::Struct(s) => &s.fields,

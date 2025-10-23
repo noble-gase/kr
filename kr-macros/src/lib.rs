@@ -5,6 +5,6 @@ use proc_macro::TokenStream;
 use crate::derives::model;
 
 #[proc_macro_derive(Model, attributes(model))]
-pub fn derive_model(input: TokenStream) -> TokenStream {
-    model::expand_partial_model(input)
+pub fn derive_sqlx_model(input: TokenStream) -> TokenStream {
+    model::expand_sqlx_model(input)
 }
