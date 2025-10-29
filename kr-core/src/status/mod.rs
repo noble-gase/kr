@@ -41,7 +41,7 @@ macro_rules! define_error_codes {
             #[error("[{0}] {1}")]
             Custom(i32, String),
             $(
-                #[error("[$code] $msg")]
+                #[error("[{code}] {msg}", code=$code, msg=$msg)]
                 $name,
             )*
         }

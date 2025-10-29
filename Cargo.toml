@@ -2,7 +2,7 @@
 members = [".", "kr-core", "kr-macros"]
 
 [workspace.package]
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 authors = ["ShengHui <847713844@qq.com>"]
 keywords = ["aes", "crypto", "hash", "time", "redis-lock"]
@@ -26,8 +26,8 @@ default = []
 macros = ["kr-macros"]
 
 [workspace.dependencies]
-kr-core = { path = "kr-core", version = "0.5.1" }
-kr-macros = { path = "kr-macros", version = "0.5.1" }
+kr-core = { path = "kr-core", version = "0.5.2" }
+kr-macros = { path = "kr-macros", version = "0.5.2" }
 
 [dependencies]
 kr-core = { workspace = true }
