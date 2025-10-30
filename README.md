@@ -23,7 +23,6 @@ cargo add kr --features macros
 - 时间格式化
 - 基于Redis的分布式锁
 - 基于 `bb8` 的Redis异步Manager
-- API Code 宏定义：`define_ok!` 和 `define_error_codes!`
 
 ⚠️ `aes` 相关功能依赖 `openssl`
 
