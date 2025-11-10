@@ -8,13 +8,5 @@ use std::panic::Location;
 #[track_caller]
 pub fn make_ctx(msg: impl Into<String>) -> String {
     let loc = Location::caller();
-    format!(
-        r#"{}
-
-Occurred at:
-    {}:{}"#,
-        msg.into(),
-        loc.file(),
-        loc.line()
-    )
+    format!("{} ({}:{})", msg.into(), loc.file(), loc.line())
 }
