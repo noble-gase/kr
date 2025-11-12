@@ -6,43 +6,52 @@ use uuid::Uuid;
 
 use crate::manager::bb8_redis;
 
-/// 基于Redis的异步分布式锁
+/// 基于Redis的异步分布式锁（离开作用域自动释放）
 ///
 /// # Examples
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = AsyncRedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).call().await?;
+/// let mut lock = AsyncRedLock::acquire()
+///     .pool(pool.clone())
+///     .key("key")
+///     .ttl(Duration::from_secs(10))
+///     .call()
+///     .await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something ...
-/// // 释放锁
+/// // 手动释放
 /// lock.unwrap().release().await?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = AsyncRedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).retry((3, Duration::from_millis(100))).call().await?;
+/// let mut lock = AsyncRedLock::acquire()
+///     .pool(pool.clone())
+///     .key("key")
+///     .ttl(Duration::from_secs(10))
+///     .retry((3, Duration::from_millis(100)))
+///     .call()
+///     .await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something ...
-/// // 释放锁
+/// // 手动释放
 /// lock.unwrap().release().await?;
 /// ```
-pub struct AsyncRedLock<'a> {
-    pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
+pub struct AsyncRedLock {
+    pool: bb8::Pool<bb8_redis::RedisConnectionManager>,
     key: String,
-    ttl: u64,
+    ttl: time::Duration,
     token: Option<String>,
     prevent: bool,
 }
 
 #[bon]
-impl<'a> AsyncRedLock<'a> {
+impl AsyncRedLock {
     /// 获取锁
     #[builder]
     pub async fn acquire(
-        pool: &'a bb8::Pool<bb8_redis::RedisConnectionManager>,
+        pool: bb8::Pool<bb8_redis::RedisConnectionManager>,
         #[builder(into)] key: String,
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
@@ -50,7 +59,7 @@ impl<'a> AsyncRedLock<'a> {
         let mut red_lock = AsyncRedLock {
             pool,
             key,
-            ttl: ttl.as_millis() as u64,
+            ttl,
             token: None,
             prevent: false,
         };
@@ -102,7 +111,8 @@ impl<'a> AsyncRedLock<'a> {
         let mut conn = self.pool.get().await?;
         let opts = redis::SetOptions::default()
             .conditional_set(NX)
-            .with_expiration(PX(self.ttl));
+            .with_expiration(PX(self.ttl.as_millis() as u64));
+
         let token = Uuid::new_v4().to_string();
 
         let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts).await;
@@ -127,8 +137,38 @@ impl<'a> AsyncRedLock<'a> {
 }
 
 // 自动释放锁
-// TODO: AsyncDrop
-// impl AsyncDrop for AsyncRedLock<'_> {
+impl Drop for AsyncRedLock {
+    fn drop(&mut self) {
+        if self.prevent || self.token.is_none() {
+            return;
+        }
+
+        let pool = self.pool.clone();
+        let key = self.key.clone();
+        let token = self.token.clone().unwrap();
+
+        // 异步释放锁
+        tokio::spawn(async move {
+            if let Err(e) = async {
+                let mut conn = pool.get().await?;
+                let script = redis::Script::new(super::SCRIPT);
+                script
+                    .key(&key)
+                    .arg(&token)
+                    .invoke_async::<()>(&mut *conn)
+                    .await?;
+                Ok::<_, anyhow::Error>(())
+            }
+            .await
+            {
+                tracing::error!(err = ?e, "[mutex.async_red_lock] drop release(key={}) failed", key);
+            }
+        });
+    }
+}
+
+// 自动释放锁
+// impl AsyncDrop for AsyncRedLock {
 //     fn drop(&mut self) {
 //         if self.prevent || self.token.is_none() {
 //             return;
@@ -144,6 +184,8 @@ impl<'a> AsyncRedLock<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use crate::manager::bb8_redis::RedisConnectionManager;
 
     use super::*;
@@ -156,13 +198,16 @@ mod tests {
             ))
             .await
             .unwrap();
-        let lock = AsyncRedLock::acquire()
-            .pool(&pool)
-            .key("test")
-            .ttl(time::Duration::from_secs(10))
-            .call()
-            .await
-            .unwrap();
-        assert!(lock.is_some());
+        {
+            let lock = AsyncRedLock::acquire()
+                .pool(pool)
+                .key("test")
+                .ttl(time::Duration::from_secs(10))
+                .call()
+                .await
+                .unwrap();
+            assert!(lock.is_some());
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

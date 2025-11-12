@@ -16,7 +16,11 @@ pub fn now(offset: Option<time::UtcOffset>) -> time::OffsetDateTime {
 /// # Example
 ///
 /// ```
-/// let time = times::parse().datetime("2023-07-12 00:00:00").format(times::DATE_TIME).call().unwrap();
+/// times::parse()
+///     .datetime("2023-07-12 00:00:00")
+///     .format(times::DATE_TIME)
+///     .call()
+///     .unwrap();
 /// ```
 #[builder]
 pub fn parse(
@@ -35,7 +39,10 @@ pub fn parse(
 /// # Example
 ///
 /// ```
-/// let time = times::from_timestamp().timestamp(1689140713).call().unwrap();
+/// times::from_timestamp()
+///     .timestamp(1689140713)
+///     .call()
+///     .unwrap();
 /// ```
 #[builder]
 pub fn from_timestamp(
@@ -55,7 +62,11 @@ pub fn from_timestamp(
 /// # Example
 ///
 /// ```
-/// let time = times::to_string().timestamp(1689140713).format(times::DATE_TIME).call().unwrap();
+/// times::to_string()
+///     .timestamp(1689140713)
+///     .format(times::DATE_TIME)
+///     .call()
+///     .unwrap();
 /// ```
 #[builder]
 pub fn to_string(
@@ -82,7 +93,11 @@ pub fn to_string(
 /// # Example
 ///
 /// ```
-/// let time = times::to_timestamp().datetime("2023-07-12 13:45:13").format(times::DATE_TIME).call().unwrap();
+/// times::to_timestamp()
+///     .datetime("2023-07-12 13:45:13")
+///     .format(times::DATE_TIME)
+///     .call()
+///     .unwrap();
 /// ```
 #[builder]
 pub fn to_timestamp(

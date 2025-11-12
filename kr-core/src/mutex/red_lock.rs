@@ -3,43 +3,50 @@ use redis::{Commands, ExistenceCheck::NX, SetExpiry::PX};
 use std::{thread, time};
 use uuid::Uuid;
 
-/// 基于Redis的分布式锁
+/// 基于Redis的分布式锁（离开作用域自动释放）
 ///
 /// # Examples
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).call()?;
+/// let mut lock = RedLock::acquire()
+///     .pool(pool.clone())
+///     .key("key")
+///     .ttl(Duration::from_secs(10))
+///     .call()?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something ...
-/// // 释放锁
+/// // 手动释放
 /// lock.unwrap().release()?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::acquire().pool(pool).key("key").ttl(Duration::from_secs(10)).retry((3, Duration::from_millis(100))).call()?;
+/// let mut lock = RedLock::acquire()
+///     .pool(pool.clone())
+///     .key("key")
+///     .ttl(Duration::from_secs(10))
+///     .retry((3, Duration::from_millis(100)))
+///     .call()?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
-/// // do something ...
-/// // 释放锁
+/// // 手动释放
 /// lock.unwrap().release()?;
 /// ```
-pub struct RedLock<'a> {
-    pool: &'a r2d2::Pool<redis::Client>,
+pub struct RedLock {
+    pool: r2d2::Pool<redis::Client>,
     key: String,
-    ttl: u64,
+    ttl: time::Duration,
     token: Option<String>,
     prevent: bool,
 }
 
 #[bon]
-impl<'a> RedLock<'a> {
+impl RedLock {
     /// 获取锁
     #[builder]
     pub fn acquire(
-        pool: &'a r2d2::Pool<redis::Client>,
+        pool: r2d2::Pool<redis::Client>,
         #[builder(into)] key: String,
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
@@ -47,7 +54,7 @@ impl<'a> RedLock<'a> {
         let mut red_lock = RedLock {
             pool,
             key,
-            ttl: ttl.as_millis() as u64,
+            ttl,
             token: None,
             prevent: false,
         };
@@ -100,7 +107,8 @@ impl<'a> RedLock<'a> {
         let mut conn = self.pool.get()?;
         let opts = redis::SetOptions::default()
             .conditional_set(NX)
-            .with_expiration(PX(self.ttl));
+            .with_expiration(PX(self.ttl.as_millis() as u64));
+
         let token = Uuid::new_v4().to_string();
 
         let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts);
@@ -125,15 +133,14 @@ impl<'a> RedLock<'a> {
 }
 
 /// 自动释放锁
-impl Drop for RedLock<'_> {
+impl Drop for RedLock {
     fn drop(&mut self) {
         if self.prevent || self.token.is_none() {
             return;
         }
 
         // 释放锁
-        let ret = self.release();
-        if let Err(e) = ret {
+        if let Err(e) = self.release() {
             tracing::error!(err = ?e, "[mutex.red_lock] drop release(key={}) failed", self.key);
         }
     }
@@ -147,7 +154,7 @@ mod tests {
     fn test_red_lock() {
         let pool = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1:6379").unwrap()).unwrap();
         let lock = RedLock::acquire()
-            .pool(&pool)
+            .pool(pool)
             .key("test")
             .ttl(time::Duration::from_secs(10))
             .call()
