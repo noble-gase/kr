@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use bon::bon;
 use openssl::symm::{decrypt_aead, encrypt_aead, Cipher, Crypter, Mode};
 
 /// AES-CBC pkcs#7
@@ -8,7 +7,6 @@ pub struct CBC<K, I> {
     iv: I,
 }
 
-#[bon]
 impl<K, I> CBC<K, I>
 where
     K: AsRef<[u8]>,
@@ -26,12 +24,11 @@ where
     /// let cbc = CBC::new(key, iv);
     ///
     /// // 默认填充
-    /// let cipher = cbc.encrypt().data("ILoveRust").call().unwrap();
+    /// let cipher = cbc.encrypt("plaintext", None).unwrap();
     ///
     /// // 指定填充字节
-    /// let cipher = cbc.encrypt().data("ILoveRust").padding_size(32).call().unwrap();
+    /// let cipher = cbc.encrypt("plaintext", Some(32)).unwrap();
     /// ```
-    #[builder]
     pub fn encrypt(&self, data: impl AsRef<[u8]>, padding_size: Option<usize>) -> Result<Vec<u8>> {
         let t = self.cipher()?;
         let mut c = Crypter::new(t, Mode::Encrypt, self.key.as_ref(), Some(self.iv.as_ref()))?;
@@ -49,9 +46,8 @@ where
     ///
     /// ```
     /// let cbc = CBC::new(key, iv);
-    /// let plain = cbc.decrypt().data(cipher).call().unwrap();
+    /// let plain = cbc.decrypt("ciphertext").unwrap();
     /// ```
-    #[builder]
     pub fn decrypt(&self, data: impl AsRef<[u8]>) -> Result<Vec<u8>> {
         let t = self.cipher()?;
         let mut c = Crypter::new(t, Mode::Decrypt, self.key.as_ref(), Some(self.iv.as_ref()))?;
@@ -80,7 +76,6 @@ pub struct ECB<K> {
     key: K,
 }
 
-#[bon]
 impl<K> ECB<K>
 where
     K: AsRef<[u8]>,
@@ -97,12 +92,11 @@ where
     /// let ecb = ECB::new(key);
     ///
     /// // 默认填充
-    /// let cipher = ecb.encrypt().data("ILoveRust").call().unwrap();
+    /// let cipher = ecb.encrypt("plaintext", None).unwrap();
     ///
     /// // 指定填充字节
-    /// let cipher = ecb.encrypt().data("ILoveRust").padding_size(32).call().unwrap();
+    /// let cipher = ecb.encrypt("plaintext", Some(32)).unwrap();
     /// ```
-    #[builder]
     pub fn encrypt(&self, data: impl AsRef<[u8]>, padding_size: Option<usize>) -> Result<Vec<u8>> {
         let t = self.cipher()?;
         let mut c = Crypter::new(t, Mode::Encrypt, self.key.as_ref(), None)?;
@@ -120,9 +114,8 @@ where
     ///
     /// ```
     /// let ecb = ECB::new(key);
-    /// let plain = ecb.decrypt().data(cipher).call().unwrap();
+    /// let plain = ecb.decrypt("ciphertext").unwrap();
     /// ```
-    #[builder]
     pub fn decrypt(&self, data: impl AsRef<[u8]>) -> Result<Vec<u8>> {
         let t = self.cipher()?;
         let mut c = Crypter::new(t, Mode::Decrypt, self.key.as_ref(), None)?;
@@ -152,7 +145,6 @@ pub struct GCM<K, N> {
     nonce: N,
 }
 
-#[bon]
 impl<K, N> GCM<K, N>
 where
     K: AsRef<[u8]>,
@@ -170,12 +162,11 @@ where
     /// let gcm = GCM::new(key, nonce);
     ///
     /// // 默认 tag_size
-    /// let (cipher, tag) = gcm.encrypt().data("ILoveRust").aad("IIInsomnia").call().unwrap();
+    /// let (cipher, tag) = gcm.encrypt("plaintext", "aad", None).unwrap();
     ///
     /// // 指定 tag_size
-    /// let (cipher, tag) = gcm.encrypt().data("ILoveRust").aad("IIInsomnia").tag_size(12).call().unwrap();
+    /// let (cipher, tag) = gcm.encrypt("plaintext", "aad", Some(12)).unwrap();
     /// ```
-    #[builder]
     pub fn encrypt(
         &self,
         data: impl AsRef<[u8]>,
@@ -199,9 +190,8 @@ where
     ///
     /// ```
     /// let gcm = GCM::new(key, nonce);
-    /// let plain = gcm.decrypt().data(cipher).aad("IIInsomnia").tag("tag").call().unwrap();
+    /// let plain = gcm.decrypt("ciphertext", "aad", "tag").unwrap();
     /// ```
-    #[builder]
     pub fn decrypt(
         &self,
         data: impl AsRef<[u8]>,
@@ -260,25 +250,20 @@ mod tests {
         let cbc = CBC::new(key, &key[..16]);
 
         // 默认填充
-        let cipher = cbc.encrypt().data("ILoveRust").call().unwrap();
+        let cipher = cbc.encrypt("ILoveRust", None).unwrap();
         assert_eq!(BASE64_STANDARD.encode(&cipher), "aXgPqNmb9UuorpPO/44xZA==");
 
-        let plain = cbc.decrypt().data(&cipher).call().unwrap();
+        let plain = cbc.decrypt(&cipher).unwrap();
         assert_eq!(plain, b"ILoveRust");
 
         // 32字节填充
-        let cipher2 = cbc
-            .encrypt()
-            .data("ILoveRust")
-            .padding_size(32)
-            .call()
-            .unwrap();
+        let cipher2 = cbc.encrypt("ILoveRust", Some(32)).unwrap();
         assert_eq!(
             BASE64_STANDARD.encode(&cipher2),
             "6lj8Yn5eO5H9Sj2cEAe01MF+deF8VDokuCv6nLb9Cw4="
         );
 
-        let plain2 = cbc.decrypt().data(&cipher2).call().unwrap();
+        let plain2 = cbc.decrypt(&cipher2).unwrap();
         assert_eq!(plain2, b"ILoveRust");
     }
 
@@ -288,25 +273,20 @@ mod tests {
         let ecb = ECB::new(key);
 
         // 默认填充
-        let cipher = ecb.encrypt().data("ILoveRust").call().unwrap();
+        let cipher = ecb.encrypt("ILoveRust", None).unwrap();
         assert_eq!(BASE64_STANDARD.encode(&cipher), "q0zwz5HYiN8b0h4mPaRCZw==");
 
-        let plain = ecb.decrypt().data(&cipher).call().unwrap();
+        let plain = ecb.decrypt(&cipher).unwrap();
         assert_eq!(plain, b"ILoveRust");
 
         // 32字节填充
-        let cipher2 = ecb
-            .encrypt()
-            .data("ILoveRust")
-            .padding_size(32)
-            .call()
-            .unwrap();
+        let cipher2 = ecb.encrypt("ILoveRust", Some(32)).unwrap();
         assert_eq!(
             BASE64_STANDARD.encode(&cipher2),
             "3kcomMJ4/+z1CNQsuVKOqob5I9/o6GPWU0rcVuA+rn0="
         );
 
-        let plain2 = ecb.decrypt().data(&cipher2).call().unwrap();
+        let plain2 = ecb.decrypt(&cipher2).unwrap();
         assert_eq!(plain2, b"ILoveRust");
     }
 
@@ -316,42 +296,19 @@ mod tests {
         let gcm = GCM::new(key, &key[..12]);
 
         // 默认 tag_size
-        let (cipher, tag) = gcm
-            .encrypt()
-            .data("ILoveRust")
-            .aad("IIInsomnia")
-            .call()
-            .unwrap();
+        let (cipher, tag) = gcm.encrypt("ILoveRust", "IIInsomnia", None).unwrap();
         assert_eq!(BASE64_STANDARD.encode(&cipher), "qciumnRSNZQl");
         assert_eq!(BASE64_STANDARD.encode(&tag), "gQgezLrbimMH6tC7VsuyPg==");
 
-        let plain = gcm
-            .decrypt()
-            .data(&cipher)
-            .aad("IIInsomnia")
-            .tag(&tag)
-            .call()
-            .unwrap();
+        let plain = gcm.decrypt(&cipher, "IIInsomnia", &tag).unwrap();
         assert_eq!(plain, b"ILoveRust");
 
         // 指定 tag_size
-        let (cipher2, tag2) = gcm
-            .encrypt()
-            .data("ILoveRust")
-            .aad("IIInsomnia")
-            .tag_size(12)
-            .call()
-            .unwrap();
+        let (cipher2, tag2) = gcm.encrypt("ILoveRust", "IIInsomnia", Some(12)).unwrap();
         assert_eq!(BASE64_STANDARD.encode(&cipher2), "qciumnRSNZQl");
         assert_eq!(BASE64_STANDARD.encode(&tag2), "gQgezLrbimMH6tC7");
 
-        let plain = gcm
-            .decrypt()
-            .data(&cipher2)
-            .aad("IIInsomnia")
-            .tag(&tag2)
-            .call()
-            .unwrap();
+        let plain = gcm.decrypt(&cipher2, "IIInsomnia", &tag2).unwrap();
         assert_eq!(plain, b"ILoveRust");
     }
 }

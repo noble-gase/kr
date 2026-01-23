@@ -1,9 +1,9 @@
 #[derive(Clone)]
-pub struct RedisConnectionManager {
+pub struct RedisConnManager {
     client: redis::Client,
 }
 
-impl RedisConnectionManager {
+impl RedisConnManager {
     pub fn new(c: redis::Client) -> Self {
         Self { client: c }
     }
@@ -16,7 +16,7 @@ impl RedisConnectionManager {
 /// ```
 /// let manager = RedisConnectionManager::new(redis::Client::open("redis://127.0.0.1:6379").unwrap());
 /// ```
-impl bb8::ManageConnection for RedisConnectionManager {
+impl bb8::ManageConnection for RedisConnManager {
     type Connection = redis::aio::MultiplexedConnection;
     type Error = redis::RedisError;
 

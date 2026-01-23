@@ -1,10 +1,9 @@
-use bon::bon;
 use redis::{AsyncCommands, ExistenceCheck::NX, SetExpiry::PX};
 use std::time;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::manager::bb8_redis;
+use crate::redix;
 
 /// 基于Redis的异步分布式锁（离开作用域自动释放）
 ///
@@ -12,12 +11,7 @@ use crate::manager::bb8_redis;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = AsyncRedLock::acquire()
-///     .pool(pool.clone())
-///     .key("key")
-///     .ttl(Duration::from_secs(10))
-///     .call()
-///     .await?;
+/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), None).await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -25,13 +19,7 @@ use crate::manager::bb8_redis;
 /// lock.unwrap().release().await?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = AsyncRedLock::acquire()
-///     .pool(pool.clone())
-///     .key("key")
-///     .ttl(Duration::from_secs(10))
-///     .retry((3, Duration::from_millis(100)))
-///     .call()
-///     .await?;
+/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100)))).await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -39,26 +27,24 @@ use crate::manager::bb8_redis;
 /// lock.unwrap().release().await?;
 /// ```
 pub struct AsyncRedLock {
-    pool: bb8::Pool<bb8_redis::RedisConnectionManager>,
+    pool: redix::SinglePool,
     key: String,
     ttl: time::Duration,
     token: Option<String>,
     prevent: bool,
 }
 
-#[bon]
 impl AsyncRedLock {
     /// 获取锁
-    #[builder]
     pub async fn acquire(
-        pool: bb8::Pool<bb8_redis::RedisConnectionManager>,
-        #[builder(into)] key: String,
+        pool: redix::SinglePool,
+        key: impl AsRef<str>,
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
     ) -> anyhow::Result<Option<Self>> {
         let mut red_lock = AsyncRedLock {
             pool,
-            key,
+            key: key.as_ref().to_string(),
             ttl,
             token: None,
             prevent: false,
@@ -186,24 +172,15 @@ impl Drop for AsyncRedLock {
 mod tests {
     use std::time::Duration;
 
-    use crate::manager::bb8_redis::RedisConnectionManager;
-
     use super::*;
 
     #[tokio::test]
     async fn test_async_red_lock() {
-        let pool = bb8::Pool::builder()
-            .build(RedisConnectionManager::new(
-                redis::Client::open("redis://127.0.0.1:6379").unwrap(),
-            ))
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
             .await
             .unwrap();
         {
-            let lock = AsyncRedLock::acquire()
-                .pool(pool)
-                .key("test")
-                .ttl(time::Duration::from_secs(10))
-                .call()
+            let lock = AsyncRedLock::acquire(pool, "test", time::Duration::from_secs(10), None)
                 .await
                 .unwrap();
             assert!(lock.is_some());

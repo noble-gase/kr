@@ -13,16 +13,19 @@ cargo add kr --features macros
 
 ## kr-core
 
-#### 功能
+| 模块   | 说明                                      |
+| ------ | ----------------------------------------- |
+| crypto | 封装 Hash 和 AES 相关方法                 |
+| mutex  | 基于 Redis 的分布式锁                     |
+| redix  | 基于 `bb8` 的 Redis 连接池初始化封装      |
+| sql    | DB初始化 和 基于 `sea-query` 的 curd 封装 |
+
+#### 说明
 
 - AES
   - CBC
   - ECB
   - GCM
-- Hash
-- 时间格式化
-- 基于Redis的分布式锁
-- 基于 `bb8` 的Redis异步Manager
 
 ⚠️ `aes` 相关功能依赖 `openssl`
 

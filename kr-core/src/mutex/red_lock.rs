@@ -1,4 +1,3 @@
-use bon::bon;
 use redis::{Commands, ExistenceCheck::NX, SetExpiry::PX};
 use std::{thread, time};
 use uuid::Uuid;
@@ -9,11 +8,7 @@ use uuid::Uuid;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::acquire()
-///     .pool(pool.clone())
-///     .key("key")
-///     .ttl(Duration::from_secs(10))
-///     .call()?;
+/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), None);
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -21,12 +16,7 @@ use uuid::Uuid;
 /// lock.unwrap().release()?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::acquire()
-///     .pool(pool.clone())
-///     .key("key")
-///     .ttl(Duration::from_secs(10))
-///     .retry((3, Duration::from_millis(100)))
-///     .call()?;
+/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100))));
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -41,19 +31,17 @@ pub struct RedLock {
     prevent: bool,
 }
 
-#[bon]
 impl RedLock {
     /// 获取锁
-    #[builder]
     pub fn acquire(
         pool: r2d2::Pool<redis::Client>,
-        #[builder(into)] key: String,
+        key: impl AsRef<str>,
         ttl: time::Duration,
         retry: Option<(i32, time::Duration)>,
     ) -> anyhow::Result<Option<Self>> {
         let mut red_lock = RedLock {
             pool,
-            key,
+            key: key.as_ref().to_string(),
             ttl,
             token: None,
             prevent: false,
@@ -153,12 +141,7 @@ mod tests {
     #[test]
     fn test_red_lock() {
         let pool = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1:6379").unwrap()).unwrap();
-        let lock = RedLock::acquire()
-            .pool(pool)
-            .key("test")
-            .ttl(time::Duration::from_secs(10))
-            .call()
-            .unwrap();
+        let lock = RedLock::acquire(pool, "test", time::Duration::from_secs(10), None).unwrap();
         assert!(lock.is_some());
     }
 }
