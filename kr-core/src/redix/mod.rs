@@ -44,7 +44,7 @@ impl Factory for Cluster {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Params {
     pub max_size: Option<u32>,
     pub min_idle: Option<u32>,

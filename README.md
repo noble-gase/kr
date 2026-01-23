@@ -37,8 +37,8 @@ cargo add kr --features macros
 
 ```rust
 #[derive(Model)]
-#[partial(UserLite !(email, phone))] // 排除字段
-#[partial(UserBrief (id, name), derive(Copy, Debug))] // 包含字段
+#[model(UserLite !(email, phone))] // 排除字段
+#[model(UserBrief (id, name), derive(Copy, Debug))] // 包含字段
 pub struct User {
     pub id: i64,
 

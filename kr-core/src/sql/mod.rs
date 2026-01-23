@@ -45,7 +45,7 @@ impl Factory for SQLite {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Params {
     pub min_conns: Option<u32>,
     pub max_conns: Option<u32>,
