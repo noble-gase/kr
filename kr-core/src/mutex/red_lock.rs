@@ -8,7 +8,7 @@ use uuid::Uuid;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), None);
+/// let lock = RedLock::new(pool, "key", Duration::from_secs(10)).acquire()?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -16,7 +16,7 @@ use uuid::Uuid;
 /// lock.unwrap().release()?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = RedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100))));
+/// let lock = RedLock::new(pool, "key", Duration::from_secs(10)).try_acquire(3, Duration::from_millis(100))?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -32,42 +32,42 @@ pub struct RedLock {
 }
 
 impl RedLock {
-    /// 获取锁
-    pub fn acquire(
-        pool: r2d2::Pool<redis::Client>,
-        key: impl AsRef<str>,
-        ttl: time::Duration,
-        retry: Option<(i32, time::Duration)>,
-    ) -> anyhow::Result<Option<Self>> {
-        let mut red_lock = RedLock {
+    pub fn new(pool: r2d2::Pool<redis::Client>, key: impl AsRef<str>, ttl: time::Duration) -> Self {
+        RedLock {
             pool,
             key: key.as_ref().to_string(),
             ttl,
             token: None,
             prevent: false,
-        };
+        }
+    }
 
-        // 重试模式
-        if let Some((attempts, duration)) = retry {
-            let threshold = attempts - 1;
-            for i in 0..attempts {
-                red_lock.set_nx()?;
-                if red_lock.token.is_some() {
-                    return Ok(Some(red_lock));
-                }
-                if i < threshold {
-                    thread::sleep(duration);
-                }
+    /// 获取锁
+    pub fn acquire(mut self) -> anyhow::Result<Option<Self>> {
+        self.set_nx()?;
+        if self.token.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(self))
+    }
+
+    /// 尝试获取锁
+    pub fn try_acquire(
+        mut self,
+        attempts: usize,
+        duration: time::Duration,
+    ) -> anyhow::Result<Option<Self>> {
+        let threshold = attempts.saturating_sub(1);
+        for i in 0..attempts {
+            self.set_nx()?;
+            if self.token.is_some() {
+                return Ok(Some(self));
             }
-            return Ok(None);
+            if i < threshold {
+                thread::sleep(duration);
+            }
         }
-
-        // 一次性模式
-        red_lock.set_nx()?;
-        if red_lock.token.is_none() {
-            return Ok(None);
-        }
-        Ok(Some(red_lock))
+        Ok(None)
     }
 
     /// 手动释放锁
@@ -141,7 +141,9 @@ mod tests {
     #[test]
     fn test_red_lock() {
         let pool = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1:6379").unwrap()).unwrap();
-        let lock = RedLock::acquire(pool, "test", time::Duration::from_secs(10), None).unwrap();
+        let lock = RedLock::new(pool, "test", time::Duration::from_secs(10))
+            .acquire()
+            .unwrap();
         assert!(lock.is_some());
     }
 }

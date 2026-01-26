@@ -16,6 +16,7 @@ cargo add kr --features macros
 | 模块   | 说明                                      |
 | ------ | ----------------------------------------- |
 | crypto | 封装 Hash 和 AES 相关方法                 |
+| helper | 一些辅助方法                              |
 | mutex  | 基于 Redis 的分布式锁                     |
 | redix  | 基于 `bb8` 的 Redis 连接池初始化封装      |
 | sql    | DB初始化 和 基于 `sea-query` 的 curd 封装 |

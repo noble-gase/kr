@@ -11,7 +11,9 @@ use crate::redix;
 ///
 /// ```
 /// // 获取锁
-/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), None).await?;
+/// let lock = AsyncRedLock::new(pool, "key", Duration::from_secs(10))
+///     .acquire()
+///     .await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -19,7 +21,9 @@ use crate::redix;
 /// lock.unwrap().release().await?;
 ///
 /// // 尝试获取锁（重试3次，间隔100ms）
-/// let mut lock = AsyncRedLock::acquire(pool, "key", Duration::from_secs(10), Some((3, Duration::from_millis(100)))).await?;
+/// let lock = AsyncRedLock::new(pool, "key", Duration::from_secs(10))
+///     .try_acquire(3, Duration::from_millis(100))
+///     .await?;
 /// if lock.is_none() {
 ///     return Err("operation is too frequent, please try again later")
 /// }
@@ -35,40 +39,42 @@ pub struct AsyncRedLock {
 }
 
 impl AsyncRedLock {
-    /// 获取锁
-    pub async fn acquire(
-        pool: redix::SinglePool,
-        key: impl AsRef<str>,
-        ttl: time::Duration,
-        retry: Option<(i32, time::Duration)>,
-    ) -> anyhow::Result<Option<Self>> {
-        let mut red_lock = AsyncRedLock {
+    pub fn new(pool: redix::SinglePool, key: impl AsRef<str>, ttl: time::Duration) -> Self {
+        AsyncRedLock {
             pool,
             key: key.as_ref().to_string(),
             ttl,
             token: None,
             prevent: false,
-        };
+        }
+    }
 
-        if let Some((attempts, duration)) = retry {
-            let threshold = attempts - 1;
-            for i in 0..attempts {
-                red_lock.set_nx().await?;
-                if red_lock.token.is_some() {
-                    return Ok(Some(red_lock));
-                }
-                if i < threshold {
-                    sleep(duration).await;
-                }
+    /// 获取锁
+    pub async fn acquire(mut self) -> anyhow::Result<Option<Self>> {
+        self.set_nx().await?;
+        if self.token.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(self))
+    }
+
+    /// 尝试获取锁
+    pub async fn try_acquire(
+        mut self,
+        attempts: usize,
+        duration: time::Duration,
+    ) -> anyhow::Result<Option<Self>> {
+        let threshold = attempts.saturating_sub(1);
+        for i in 0..attempts {
+            self.set_nx().await?;
+            if self.token.is_some() {
+                return Ok(Some(self));
             }
-            return Ok(None);
+            if i < threshold {
+                sleep(duration).await;
+            }
         }
-
-        red_lock.set_nx().await?;
-        if red_lock.token.is_none() {
-            return Ok(None);
-        }
-        Ok(Some(red_lock))
+        Ok(None)
     }
 
     /// 手动释放锁
@@ -180,7 +186,8 @@ mod tests {
             .await
             .unwrap();
         {
-            let lock = AsyncRedLock::acquire(pool, "test", time::Duration::from_secs(10), None)
+            let lock = AsyncRedLock::new(pool, "test", time::Duration::from_secs(10))
+                .acquire()
                 .await
                 .unwrap();
             assert!(lock.is_some());
