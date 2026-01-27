@@ -1,4 +1,4 @@
-use redis::{AsyncCommands, ExistenceCheck::NX, SetExpiry::PX};
+use redis::{AsyncCommands, ExistenceCheck::NX, SetExpiry::EX};
 use std::time;
 use tokio::time::sleep;
 use uuid::Uuid;
@@ -84,8 +84,7 @@ impl AsyncRedLock {
         }
 
         let mut conn = self.pool.get().await?;
-        let script = redis::Script::new(super::SCRIPT);
-        script
+        redis::Script::new(super::DEL)
             .key(&self.key)
             .arg(&self.token)
             .invoke_async::<()>(&mut *conn)
@@ -94,19 +93,19 @@ impl AsyncRedLock {
         Ok(())
     }
 
-    /// 阻止 `AsyncDrop` 自动释放锁
+    /// 阻止锁自动释放
     pub fn prevent(&mut self) {
         self.prevent = true;
     }
 
     async fn set_nx(&mut self) -> anyhow::Result<()> {
         let mut conn = self.pool.get().await?;
-        let opts = redis::SetOptions::default()
-            .conditional_set(NX)
-            .with_expiration(PX(self.ttl.as_millis() as u64));
 
         let token = Uuid::new_v4().to_string();
 
+        let opts = redis::SetOptions::default()
+            .conditional_set(NX)
+            .with_expiration(EX(self.ttl.as_secs().max(1)));
         let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts).await;
         match ret_setnx {
             Ok(v) => {
@@ -143,8 +142,7 @@ impl Drop for AsyncRedLock {
         tokio::spawn(async move {
             if let Err(e) = async {
                 let mut conn = pool.get().await?;
-                let script = redis::Script::new(super::SCRIPT);
-                script
+                redis::Script::new(super::DEL)
                     .key(&key)
                     .arg(&token)
                     .invoke_async::<()>(&mut *conn)
@@ -185,13 +183,16 @@ mod tests {
         let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
             .await
             .unwrap();
+
         {
-            let lock = AsyncRedLock::new(pool, "test", time::Duration::from_secs(10))
-                .acquire()
-                .await
-                .unwrap();
+            let lock =
+                AsyncRedLock::new(pool, "test_async_red_lock", time::Duration::from_secs(10))
+                    .acquire()
+                    .await
+                    .unwrap();
             assert!(lock.is_some());
         }
+
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

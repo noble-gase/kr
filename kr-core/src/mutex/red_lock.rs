@@ -1,4 +1,4 @@
-use redis::{Commands, ExistenceCheck::NX, SetExpiry::PX};
+use redis::{Commands, ExistenceCheck::NX, SetExpiry::EX};
 use std::{thread, time};
 use uuid::Uuid;
 
@@ -77,8 +77,7 @@ impl RedLock {
         }
 
         let mut conn = self.pool.get()?;
-        let script = redis::Script::new(super::SCRIPT);
-        script
+        redis::Script::new(super::DEL)
             .key(&self.key)
             .arg(&self.token)
             .invoke::<()>(&mut conn)?;
@@ -86,19 +85,19 @@ impl RedLock {
         Ok(())
     }
 
-    /// 阻止 `Drop` 自动释放锁
+    /// 阻止锁自动释放
     pub fn prevent(&mut self) {
         self.prevent = true;
     }
 
     fn set_nx(&mut self) -> anyhow::Result<()> {
         let mut conn = self.pool.get()?;
-        let opts = redis::SetOptions::default()
-            .conditional_set(NX)
-            .with_expiration(PX(self.ttl.as_millis() as u64));
 
         let token = Uuid::new_v4().to_string();
 
+        let opts = redis::SetOptions::default()
+            .conditional_set(NX)
+            .with_expiration(EX(self.ttl.as_secs().max(1)));
         let ret_setnx: redis::RedisResult<bool> = conn.set_options(&self.key, &token, opts);
         match ret_setnx {
             Ok(v) => {
@@ -141,7 +140,7 @@ mod tests {
     #[test]
     fn test_red_lock() {
         let pool = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1:6379").unwrap()).unwrap();
-        let lock = RedLock::new(pool, "test", time::Duration::from_secs(10))
+        let lock = RedLock::new(pool, "test_red_lock", time::Duration::from_secs(10))
             .acquire()
             .unwrap();
         assert!(lock.is_some());

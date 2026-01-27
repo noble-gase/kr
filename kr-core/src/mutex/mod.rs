@@ -1,7 +1,7 @@
 pub mod async_red_lock;
 pub mod red_lock;
 
-pub const SCRIPT: &str = r#"
+pub const DEL: &str = r#"
 if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("DEL", KEYS[1])
 else

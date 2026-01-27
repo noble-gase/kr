@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod zoned;
 
 use rand::distributions::{Alphanumeric, DistString};

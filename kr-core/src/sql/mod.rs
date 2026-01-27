@@ -65,7 +65,7 @@ pub struct Params {
 /// // [PgSQL] postgres://<username>:<password>@<host>:5432/<db>?options=-c%20TimeZone%3DAsia/Shanghai
 /// let x = sql::open::<sql::PgSQL>("dsn", None).await;
 ///
-/// // [SQLite] sqlite::memory:?cache=shared" || dsn = "sqlite://</path/test.db>
+/// // [SQLite] sqlite://</path/test.db> || sqlite::memory:?cache=shared
 /// let x = sql::open::<sql::SQLite>("dsn", None).await;
 /// ```
 pub async fn open<F>(dsn: String, opt: Option<Params>) -> anyhow::Result<Pool<F::DB>>

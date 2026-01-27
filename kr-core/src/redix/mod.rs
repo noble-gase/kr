@@ -9,6 +9,11 @@ pub type SinglePool = bb8::Pool<single::RedisConnManager>;
 
 pub type ClusterPool = bb8::Pool<cluster::RedisClusterManager>;
 
+pub enum Pool {
+    Single(SinglePool),
+    Cluster(ClusterPool),
+}
+
 pub trait Factory {
     type Manager: ManageConnection<Error: std::error::Error + Send + Sync + 'static>;
 
@@ -60,14 +65,14 @@ pub struct Params {
 /// ```
 /// // DSN
 /// // redis://<host>:6379/<db>
-/// // redis://:<pass>@<host>:6379/<db>
-/// // redis://<user>:<pass>@<host>:6379/<db>
+/// // redis://:<password>@<host>:6379/<db>
+/// // redis://<username>:<password>@<host>:6379/<db>
 ///
 /// // 单节点
-/// let x = redix::new::<redix::Single>(vec!["dsn"], None).await;
+/// let x = redix::open::<redix::Single>(vec!["dsn"], None).await;
 ///
 /// // 集群
-/// let x = redix::new::<redix::Cluster>(vec!["dsn1","dsn2"], None).await;
+/// let x = redix::open::<redix::Cluster>(vec!["dsn1", "dsn2"], None).await;
 /// ```
 pub async fn open<F>(dsn: Vec<String>, opt: Option<Params>) -> anyhow::Result<bb8::Pool<F::Manager>>
 where
