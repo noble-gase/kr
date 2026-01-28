@@ -91,7 +91,7 @@ impl Redis {
         }
     }
 
-    pub async fn hget_or_hset<T, F, Fut>(
+    pub async fn hget_or_set<T, F, Fut>(
         &self,
         key: impl AsRef<str>,
         field: impl AsRef<str>,
@@ -411,13 +411,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_hget_or_hset() {
+    async fn test_hget_or_set() {
         let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
             .await
             .unwrap();
 
         let ret = Redis::Single(pool.clone())
-            .hget_or_hset(
+            .hget_or_set(
                 "foo",
                 "bar",
                 || async {
