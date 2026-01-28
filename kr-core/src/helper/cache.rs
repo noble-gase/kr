@@ -1,4 +1,4 @@
-use std::{future::Future, time::Duration};
+use std::{collections::HashMap, future::Future, time::Duration};
 
 use redis::{AsyncCommands, RedisResult};
 use serde::{de::DeserializeOwned, Serialize};
@@ -12,167 +12,356 @@ if redis.call('TTL', KEYS[1]) == -1 then
 end
 "#;
 
-pub async fn get_or_set<T, F, Fut>(
-    pool: redix::Pool,
-    key: impl AsRef<str>,
-    loader: F,
-    ttl: Option<Duration>,
-) -> anyhow::Result<Option<T>>
-where
-    T: Serialize + DeserializeOwned + Send + 'static,
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = anyhow::Result<Option<T>>>,
-{
-    match pool {
-        redix::Pool::Single(p) => {
-            let mut conn = p.get().await?;
-
-            let key = key.as_ref();
-
-            // 从缓存读取
-            let ret_get: Option<String> = conn.get(key).await?;
-            if let Some(v) = ret_get {
-                let parsed = serde_json::from_str(&v)?;
-                return Ok(parsed);
-            }
-
-            // 缓存未命中，调用loader获取数据
-            let data = loader().await?;
-
-            // 数据存在，写入缓存
-            if let Some(v) = &data {
-                let json_str = serde_json::to_string(&v)?;
-                let set_ret: RedisResult<()> = match ttl {
-                    Some(d) => conn.set_ex(key, &json_str, d.as_secs()).await,
-                    None => conn.set(key, &json_str).await,
-                };
-                if let Err(e) = set_ret {
-                    tracing::error!(error = ?e, key = key, data = json_str, "[cache::get_or_set] set data failed")
-                }
-            }
-
-            Ok(data)
-        }
-        redix::Pool::Cluster(p) => {
-            let mut conn = p.get().await?;
-
-            let key = key.as_ref();
-
-            // 从缓存读取
-            let ret_get: Option<String> = conn.get(key).await?;
-            if let Some(v) = ret_get {
-                let parsed = serde_json::from_str(&v)?;
-                return Ok(parsed);
-            }
-
-            // 缓存未命中，调用loader获取数据
-            let data = loader().await?;
-
-            // 数据存在，写入缓存
-            if let Some(v) = &data {
-                let json_str = serde_json::to_string(&v)?;
-                let set_ret: RedisResult<()> = match ttl {
-                    Some(d) => conn.set_ex(key, &json_str, d.as_secs()).await,
-                    None => conn.set(key, &json_str).await,
-                };
-                if let Err(e) = set_ret {
-                    tracing::error!(error = ?e, key = key, data = json_str, "[cache::get_or_set] set data failed")
-                }
-            }
-
-            Ok(data)
-        }
-    }
+pub enum Redis {
+    Single(redix::SinglePool),
+    Cluster(redix::ClusterPool),
 }
 
-pub async fn hget_or_hset<T, F, Fut>(
-    pool: redix::Pool,
-    key: impl AsRef<str>,
-    field: impl AsRef<str>,
-    loader: F,
-    ttl: Option<Duration>,
-) -> anyhow::Result<Option<T>>
-where
-    T: Serialize + DeserializeOwned + Send + 'static,
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = anyhow::Result<Option<T>>>,
-{
-    match pool {
-        redix::Pool::Single(p) => {
-            let mut conn = p.get().await?;
+impl Redis {
+    pub async fn get_or_set<T, F, Fut>(
+        &self,
+        key: impl AsRef<str>,
+        loader: F,
+        ttl: Option<Duration>,
+    ) -> anyhow::Result<Option<T>>
+    where
+        T: Serialize + DeserializeOwned + Send + 'static,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = anyhow::Result<Option<T>>>,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
 
-            let key = key.as_ref();
-            let field = field.as_ref();
+                let key = key.as_ref();
 
-            // 从缓存读取
-            let ret_get: Option<String> = conn.hget(key, field).await?;
-            if let Some(v) = ret_get {
-                let parsed = serde_json::from_str(&v)?;
-                return Ok(parsed);
-            }
-
-            // 缓存未命中，调用loader获取数据
-            let data = loader().await?;
-
-            // 数据存在，写入缓存
-            if let Some(v) = &data {
-                let json_str = serde_json::to_string(&v)?;
-                let set_ret: RedisResult<()> = match ttl {
-                    Some(d) => {
-                        redis::Script::new(HSET)
-                            .key(key)
-                            .arg(field)
-                            .arg(&json_str)
-                            .arg(d.as_secs() as i64)
-                            .invoke_async(&mut *conn)
-                            .await
-                    }
-                    None => conn.hset(key, field, &json_str).await,
-                };
-                if let Err(e) = set_ret {
-                    tracing::error!(error = ?e, key = key, data = json_str, "[cache::hget_or_hset] set data failed")
+                // 从缓存读取
+                let ret_get: Option<String> = conn.get(key).await?;
+                if let Some(v) = ret_get {
+                    let parsed = serde_json::from_str(&v)?;
+                    return Ok(parsed);
                 }
-            }
 
-            Ok(data)
+                // 缓存未命中，调用loader获取数据
+                let data = loader().await?;
+
+                // 数据存在，写入缓存
+                if let Some(v) = &data {
+                    let json_str = serde_json::to_string(&v)?;
+                    let set_ret: RedisResult<()> = match ttl {
+                        Some(d) => conn.set_ex(key, &json_str, d.as_secs()).await,
+                        None => conn.set(key, &json_str).await,
+                    };
+                    if let Err(e) = set_ret {
+                        tracing::error!(error = ?e, key = key, data = json_str, "[cache::get_or_set] set data failed")
+                    }
+                }
+
+                Ok(data)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let key = key.as_ref();
+
+                // 从缓存读取
+                let ret_get: Option<String> = conn.get(key).await?;
+                if let Some(v) = ret_get {
+                    let parsed = serde_json::from_str(&v)?;
+                    return Ok(parsed);
+                }
+
+                // 缓存未命中，调用loader获取数据
+                let data = loader().await?;
+
+                // 数据存在，写入缓存
+                if let Some(v) = &data {
+                    let json_str = serde_json::to_string(&v)?;
+                    let set_ret: RedisResult<()> = match ttl {
+                        Some(d) => conn.set_ex(key, &json_str, d.as_secs()).await,
+                        None => conn.set(key, &json_str).await,
+                    };
+                    if let Err(e) = set_ret {
+                        tracing::error!(error = ?e, key = key, data = json_str, "[cache::get_or_set] set data failed")
+                    }
+                }
+
+                Ok(data)
+            }
         }
-        redix::Pool::Cluster(p) => {
-            let mut conn = p.get().await?;
+    }
 
-            let key = key.as_ref();
-            let field = field.as_ref();
+    pub async fn hget_or_hset<T, F, Fut>(
+        &self,
+        key: impl AsRef<str>,
+        field: impl AsRef<str>,
+        loader: F,
+        ttl: Option<Duration>,
+    ) -> anyhow::Result<Option<T>>
+    where
+        T: Serialize + DeserializeOwned + Send + 'static,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = anyhow::Result<Option<T>>>,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
 
-            // 从缓存读取
-            let ret_get: Option<String> = conn.hget(key, field).await?;
-            if let Some(v) = ret_get {
-                let parsed = serde_json::from_str(&v)?;
-                return Ok(parsed);
-            }
+                let key = key.as_ref();
+                let field = field.as_ref();
 
-            // 缓存未命中，调用loader获取数据
-            let data = loader().await?;
-
-            // 数据存在，写入缓存
-            if let Some(v) = &data {
-                let json_str = serde_json::to_string(&v)?;
-                let set_ret: RedisResult<()> = match ttl {
-                    Some(d) => {
-                        redis::Script::new(HSET)
-                            .key(key)
-                            .arg(field)
-                            .arg(&json_str)
-                            .arg(d.as_secs() as i64)
-                            .invoke_async(&mut *conn)
-                            .await
-                    }
-                    None => conn.hset(key, field, &json_str).await,
-                };
-                if let Err(e) = set_ret {
-                    tracing::error!(error = ?e, key = key, data = json_str, "[cache::hget_or_hset] set data failed")
+                // 从缓存读取
+                let ret_get: Option<String> = conn.hget(key, field).await?;
+                if let Some(v) = ret_get {
+                    let parsed = serde_json::from_str(&v)?;
+                    return Ok(parsed);
                 }
-            }
 
-            Ok(data)
+                // 缓存未命中，调用loader获取数据
+                let data = loader().await?;
+
+                // 数据存在，写入缓存
+                if let Some(v) = &data {
+                    let json_str = serde_json::to_string(&v)?;
+                    let set_ret: RedisResult<()> = match ttl {
+                        Some(d) => {
+                            redis::Script::new(HSET)
+                                .key(key)
+                                .arg(field)
+                                .arg(&json_str)
+                                .arg(d.as_secs() as i64)
+                                .invoke_async(&mut *conn)
+                                .await
+                        }
+                        None => conn.hset(key, field, &json_str).await,
+                    };
+                    if let Err(e) = set_ret {
+                        tracing::error!(error = ?e, key = key, data = json_str, "[cache::hget_or_hset] set data failed")
+                    }
+                }
+
+                Ok(data)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let key = key.as_ref();
+                let field = field.as_ref();
+
+                // 从缓存读取
+                let ret_get: Option<String> = conn.hget(key, field).await?;
+                if let Some(v) = ret_get {
+                    let parsed = serde_json::from_str(&v)?;
+                    return Ok(parsed);
+                }
+
+                // 缓存未命中，调用loader获取数据
+                let data = loader().await?;
+
+                // 数据存在，写入缓存
+                if let Some(v) = &data {
+                    let json_str = serde_json::to_string(&v)?;
+                    let set_ret: RedisResult<()> = match ttl {
+                        Some(d) => {
+                            redis::Script::new(HSET)
+                                .key(key)
+                                .arg(field)
+                                .arg(&json_str)
+                                .arg(d.as_secs() as i64)
+                                .invoke_async(&mut *conn)
+                                .await
+                        }
+                        None => conn.hset(key, field, &json_str).await,
+                    };
+                    if let Err(e) = set_ret {
+                        tracing::error!(error = ?e, key = key, data = json_str, "[cache::hget_or_hset] set data failed")
+                    }
+                }
+
+                Ok(data)
+            }
+        }
+    }
+
+    pub async fn mget_map<K, T>(&self, keys: &[K]) -> anyhow::Result<HashMap<String, T>>
+    where
+        K: AsRef<str> + Sync,
+        T: Serialize + DeserializeOwned,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
+
+                let key_vec: Vec<&str> = keys.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.mget(key_vec).await?;
+
+                let mut map = HashMap::with_capacity(keys.len());
+                for (k, v) in keys.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), serde_json::from_str(&s)?);
+                    }
+                }
+                Ok(map)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let key_vec: Vec<&str> = keys.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.mget(key_vec).await?;
+
+                let mut map = HashMap::with_capacity(keys.len());
+                for (k, v) in keys.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), serde_json::from_str(&s)?);
+                    }
+                }
+                Ok(map)
+            }
+        }
+    }
+
+    pub async fn mget_str_map<K>(&self, keys: &[K]) -> anyhow::Result<HashMap<String, String>>
+    where
+        K: AsRef<str> + Sync,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
+
+                let key_vec: Vec<&str> = keys.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.mget(key_vec).await?;
+
+                let mut map = HashMap::with_capacity(keys.len());
+                for (k, v) in keys.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), s);
+                    }
+                }
+                Ok(map)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let key_vec: Vec<&str> = keys.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.mget(key_vec).await?;
+
+                let mut map = HashMap::with_capacity(keys.len());
+                for (k, v) in keys.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), s);
+                    }
+                }
+                Ok(map)
+            }
+        }
+    }
+
+    pub async fn hgetall<T>(&self, key: impl AsRef<str>) -> anyhow::Result<HashMap<String, T>>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
+
+                let raw: HashMap<String, String> = conn.hgetall(key.as_ref()).await?;
+
+                let mut map = HashMap::with_capacity(raw.len());
+                for (k, v) in raw {
+                    let parsed = serde_json::from_str(&v)?;
+                    map.insert(k, parsed);
+                }
+                Ok(map)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let raw: HashMap<String, String> = conn.hgetall(key.as_ref()).await?;
+
+                let mut map = HashMap::with_capacity(raw.len());
+                for (k, v) in raw {
+                    let parsed = serde_json::from_str(&v)?;
+                    map.insert(k, parsed);
+                }
+                Ok(map)
+            }
+        }
+    }
+
+    pub async fn hmget_map<K, T>(&self, key: K, fields: &[K]) -> anyhow::Result<HashMap<String, T>>
+    where
+        K: AsRef<str> + Sync,
+        T: Serialize + DeserializeOwned,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
+
+                let field_vec: Vec<&str> = fields.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.hmget(key.as_ref(), field_vec).await?;
+
+                let mut map = HashMap::with_capacity(fields.len());
+                for (k, v) in fields.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), serde_json::from_str(&s)?);
+                    }
+                }
+                Ok(map)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let field_vec: Vec<&str> = fields.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.hmget(key.as_ref(), field_vec).await?;
+
+                let mut map = HashMap::with_capacity(fields.len());
+                for (k, v) in fields.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), serde_json::from_str(&s)?);
+                    }
+                }
+                Ok(map)
+            }
+        }
+    }
+
+    pub async fn hmget_str_map<K>(
+        &self,
+        key: K,
+        fields: &[K],
+    ) -> anyhow::Result<HashMap<String, String>>
+    where
+        K: AsRef<str> + Sync,
+    {
+        match self {
+            Redis::Single(pool) => {
+                let mut conn = pool.get().await?;
+
+                let field_vec: Vec<&str> = fields.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.hmget(key.as_ref(), field_vec).await?;
+
+                let mut map = HashMap::with_capacity(fields.len());
+                for (k, v) in fields.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), s);
+                    }
+                }
+                Ok(map)
+            }
+            Redis::Cluster(pool) => {
+                let mut conn = pool.get().await?;
+
+                let field_vec: Vec<&str> = fields.iter().map(|k| k.as_ref()).collect();
+                let raw: Vec<Option<String>> = conn.hmget(key.as_ref(), field_vec).await?;
+
+                let mut map = HashMap::with_capacity(fields.len());
+                for (k, v) in fields.iter().zip(raw.into_iter()) {
+                    if let Some(s) = v {
+                        map.insert(k.as_ref().to_string(), s);
+                    }
+                }
+                Ok(map)
+            }
         }
     }
 }
@@ -183,6 +372,7 @@ mod tests {
 
     use anyhow::Ok;
     use serde::Deserialize;
+    use serde_json::json;
 
     use super::*;
 
@@ -198,22 +388,26 @@ mod tests {
             .await
             .unwrap();
 
-        let ret = get_or_set(
-            redix::Pool::Single(pool),
-            "test_get_or_set",
-            || async {
-                println!("call loader");
-                Ok(Some(Demo {
-                    id: 1,
-                    name: "hello".to_string(),
-                }))
-            },
-            Some(Duration::from_mins(5)),
-        )
-        .await
-        .unwrap();
+        let ret = Redis::Single(pool.clone())
+            .get_or_set(
+                "hello",
+                || async {
+                    println!(">> call loader");
+                    Ok(Some(Demo {
+                        id: 1,
+                        name: "hello".to_string(),
+                    }))
+                },
+                Some(Duration::from_mins(1)),
+            )
+            .await
+            .unwrap();
+        println!(">> {:#?}", ret);
 
-        println!("{:#?}", ret);
+        let s: String = pool.get().await.unwrap().get("hello").await.unwrap();
+        println!(">> {}", s);
+
+        let _: RedisResult<()> = pool.get().await.unwrap().del("hello").await;
     }
 
     #[tokio::test]
@@ -222,22 +416,172 @@ mod tests {
             .await
             .unwrap();
 
-        let ret = hget_or_hset(
-            redix::Pool::Single(pool),
-            "test_hget_or_hset",
-            "hello",
-            || async {
-                println!("call loader");
-                Ok(Some(Demo {
-                    id: 1,
-                    name: "hello".to_string(),
-                }))
-            },
-            Some(Duration::from_mins(5)),
-        )
-        .await
-        .unwrap();
+        let ret = Redis::Single(pool.clone())
+            .hget_or_hset(
+                "foo",
+                "bar",
+                || async {
+                    println!(">> call loader");
+                    Ok(Some(Demo {
+                        id: 1,
+                        name: "hello".to_string(),
+                    }))
+                },
+                Some(Duration::from_mins(1)),
+            )
+            .await
+            .unwrap();
+        println!(">> {:#?}", ret);
 
-        println!("{:#?}", ret);
+        let s: String = pool.get().await.unwrap().hget("foo", "bar").await.unwrap();
+        println!(">> {}", s);
+
+        let _: RedisResult<()> = pool.get().await.unwrap().del("foo").await;
+    }
+
+    #[tokio::test]
+    async fn test_mget_map() {
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
+            .await
+            .unwrap();
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .mset(&[
+                ("foo", json!({"id":1,"name":"foo"}).to_string()),
+                ("bar", json!({"id":2,"name":"bar"}).to_string()),
+                ("hello", json!({"id":3,"name":"hello"}).to_string()),
+            ])
+            .await;
+
+        let ret: HashMap<String, Demo> = Redis::Single(pool.clone())
+            .mget_map(&["foo", "bar", "hello", "none"])
+            .await
+            .unwrap();
+        println!(">> {:#?}", ret);
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .del(&["foo", "bar", "hello"])
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_mget_str_map() {
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
+            .await
+            .unwrap();
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .mset(&[
+                ("foo", json!({"id":1,"name":"foo"}).to_string()),
+                ("bar", json!({"id":2,"name":"bar"}).to_string()),
+                ("hello", json!({"id":3,"name":"hello"}).to_string()),
+            ])
+            .await;
+
+        let ret: HashMap<String, String> = Redis::Single(pool.clone())
+            .mget_str_map(&["foo", "bar", "hello", "none"])
+            .await
+            .unwrap();
+        println!(">> {:#?}", ret);
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .del(&["foo", "bar", "hello"])
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_hgetall() {
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
+            .await
+            .unwrap();
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .hset_multiple(
+                "test",
+                &[
+                    ("foo", json!({"id":1,"name":"foo"}).to_string()),
+                    ("bar", json!({"id":2,"name":"bar"}).to_string()),
+                    ("hello", json!({"id":3,"name":"hello"}).to_string()),
+                ],
+            )
+            .await;
+
+        let ret: HashMap<String, Demo> = Redis::Single(pool.clone()).hgetall("test").await.unwrap();
+        println!(">> {:#?}", ret);
+
+        let _: RedisResult<()> = pool.get().await.unwrap().del("test").await;
+    }
+
+    #[tokio::test]
+    async fn test_hmget_map() {
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
+            .await
+            .unwrap();
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .hset_multiple(
+                "test",
+                &[
+                    ("foo", json!({"id":1,"name":"foo"}).to_string()),
+                    ("bar", json!({"id":2,"name":"bar"}).to_string()),
+                    ("hello", json!({"id":3,"name":"hello"}).to_string()),
+                ],
+            )
+            .await;
+
+        let ret: HashMap<String, Demo> = Redis::Single(pool.clone())
+            .hmget_map("test", &["foo", "bar", "hello", "none"])
+            .await
+            .unwrap();
+        println!(">> {:#?}", ret);
+
+        let _: RedisResult<()> = pool.get().await.unwrap().del("test").await;
+    }
+
+    #[tokio::test]
+    async fn test_hmget_str_map() {
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
+            .await
+            .unwrap();
+
+        let _: RedisResult<()> = pool
+            .get()
+            .await
+            .unwrap()
+            .hset_multiple(
+                "test",
+                &[
+                    ("foo", json!({"id":1,"name":"foo"}).to_string()),
+                    ("bar", json!({"id":2,"name":"bar"}).to_string()),
+                    ("hello", json!({"id":3,"name":"hello"}).to_string()),
+                ],
+            )
+            .await;
+
+        let ret: HashMap<String, String> = Redis::Single(pool.clone())
+            .hmget_str_map("test", &["foo", "bar", "hello", "none"])
+            .await
+            .unwrap();
+        println!(">> {:#?}", ret);
+
+        let _: RedisResult<()> = pool.get().await.unwrap().del("test").await;
     }
 }

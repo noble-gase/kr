@@ -9,11 +9,6 @@ pub type SinglePool = bb8::Pool<single::RedisConnManager>;
 
 pub type ClusterPool = bb8::Pool<cluster::RedisClusterManager>;
 
-pub enum Pool {
-    Single(SinglePool),
-    Cluster(ClusterPool),
-}
-
 pub trait Factory {
     type Manager: ManageConnection<Error: std::error::Error + Send + Sync + 'static>;
 
