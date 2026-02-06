@@ -1,8 +1,12 @@
+use std::time::Instant;
+
 use sea_query::{
     DeleteStatement, Expr, InsertStatement, MysqlQueryBuilder, SelectStatement, UpdateStatement,
 };
 use sea_query_binder::SqlxBinder;
 use sqlx::{mysql::MySqlRow, Executor, FromRow, MySql};
+
+use crate::sql::trace_sql;
 
 /// 插入记录
 ///
@@ -21,14 +25,23 @@ pub async fn create<'e, E>(db: E, stmt: InsertStatement) -> anyhow::Result<u64>
 where
     E: Executor<'e, Database = MySql>,
 {
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
-
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let ret = sqlx::query_with(&sql, values).execute(db).await?;
+    let start = Instant::now();
+    let ret = sqlx::query_with(&sql, values).execute(db).await;
+    let cost = start.elapsed();
 
-    Ok(ret.last_insert_id())
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, None);
+            Ok(v.last_insert_id())
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, Some(&err));
+            Err(err)
+        }
+    }
 }
 
 /// 更新记录
@@ -48,14 +61,23 @@ pub async fn update<'e, E>(db: E, stmt: UpdateStatement) -> anyhow::Result<u64>
 where
     E: Executor<'e, Database = MySql>,
 {
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
-
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let ret = sqlx::query_with(&sql, values).execute(db).await?;
+    let start = Instant::now();
+    let ret = sqlx::query_with(&sql, values).execute(db).await;
+    let cost = start.elapsed();
 
-    Ok(ret.rows_affected())
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, None);
+            Ok(v.rows_affected())
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, Some(&err));
+            Err(err)
+        }
+    }
 }
 
 /// 删除记录
@@ -74,14 +96,23 @@ pub async fn delete<'e, E>(db: E, stmt: DeleteStatement) -> anyhow::Result<u64>
 where
     E: Executor<'e, Database = MySql>,
 {
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
-
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let ret = sqlx::query_with(&sql, values).execute(db).await?;
+    let start = Instant::now();
+    let ret = sqlx::query_with(&sql, values).execute(db).await;
+    let cost = start.elapsed();
 
-    Ok(ret.rows_affected())
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, None);
+            Ok(v.rows_affected())
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, Some(&err));
+            Err(err)
+        }
+    }
 }
 
 /// 统计记录数
@@ -105,13 +136,23 @@ where
     // SELECT COUNT(*)
     stmt.expr(Expr::cust("COUNT(*)"));
 
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
-
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
-    let total: i64 = sqlx::query_scalar_with(&sql, values).fetch_one(db).await?;
 
-    Ok(total)
+    let start = Instant::now();
+    let ret: Result<i64, sqlx::Error> = sqlx::query_scalar_with(&sql, values).fetch_one(db).await;
+    let cost = start.elapsed();
+
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, None);
+            Ok(v)
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, Some(&err));
+            Err(err)
+        }
+    }
 }
 
 /// 查询单条记录
@@ -133,17 +174,25 @@ where
     T: for<'r> FromRow<'r, MySqlRow> + Send + Unpin,
 {
     stmt.limit(1);
-
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
-
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let row = sqlx::query_as_with::<_, T, _>(&sql, values)
+    let start = Instant::now();
+    let ret = sqlx::query_as_with::<_, T, _>(&sql, values)
         .fetch_optional(db)
-        .await?;
+        .await;
+    let cost = start.elapsed();
 
-    Ok(row)
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, None);
+            Ok(v)
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, Some(&err));
+            Err(err)
+        }
+    }
 }
 
 /// 查询多条记录
@@ -164,16 +213,25 @@ where
     E: Executor<'e, Database = MySql>,
     T: for<'r> FromRow<'r, MySqlRow> + Send + Unpin,
 {
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
-
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let rows = sqlx::query_as_with::<_, T, _>(&sql, values)
+    let start = Instant::now();
+    let ret = sqlx::query_as_with::<_, T, _>(&sql, values)
         .fetch_all(db)
-        .await?;
+        .await;
+    let cost = start.elapsed();
 
-    Ok(rows)
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, None);
+            Ok(v)
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), cost, Some(&err));
+            Err(err)
+        }
+    }
 }
 
 /// 分页查询
@@ -207,14 +265,25 @@ where
     // SELECT COUNT(*)
     count.expr(Expr::cust("COUNT(*)"));
 
-    // SQL日志
-    tracing::info!(SQL = count.to_string(MysqlQueryBuilder));
-
     let (count_sql, count_values) = count.build_sqlx(MysqlQueryBuilder);
-    let total: i64 = sqlx::query_scalar_with(&count_sql, count_values)
-        .fetch_one(db)
-        .await?;
 
+    let count_start = Instant::now();
+    let ret: Result<i64, sqlx::Error> = sqlx::query_scalar_with(&count_sql, count_values)
+        .fetch_one(db)
+        .await;
+    let count_cost = count_start.elapsed();
+
+    let total = match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), count_cost, None);
+            v
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), count_cost, Some(&err));
+            return Err(err);
+        }
+    };
     if total == 0 {
         return Ok((Vec::new(), total));
     }
@@ -228,14 +297,23 @@ where
     }
     stmt.limit(size as u64).offset(((page - 1) * size) as u64);
 
-    // SQL日志
-    tracing::info!(SQL = stmt.to_string(MysqlQueryBuilder));
+    let (query_sql, query_values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
-
-    let rows = sqlx::query_as_with::<_, T, _>(&sql, values)
+    let query_start = Instant::now();
+    let ret = sqlx::query_as_with::<_, T, _>(&query_sql, query_values)
         .fetch_all(db)
-        .await?;
+        .await;
+    let query_cost = query_start.elapsed();
 
-    Ok((rows, total))
+    match ret {
+        Ok(v) => {
+            trace_sql(stmt.to_string(MysqlQueryBuilder), query_cost, None);
+            Ok((v, total))
+        }
+        Err(e) => {
+            let err = anyhow::Error::from(e);
+            trace_sql(stmt.to_string(MysqlQueryBuilder), query_cost, Some(&err));
+            Err(err)
+        }
+    }
 }

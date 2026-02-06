@@ -2,12 +2,16 @@ pub mod mysql;
 pub mod pgsql;
 pub mod sqlite;
 
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use sqlx::{
     mysql::MySqlPoolOptions, pool::PoolOptions, postgres::PgPoolOptions, sqlite::SqlitePoolOptions,
     Database, MySql, Pool, Postgres, Sqlite,
 };
+
+pub type SqlLogger = fn(sql: String, cost: Duration, err: Option<&anyhow::Error>);
+
+static SQL_LOGGER: OnceLock<SqlLogger> = OnceLock::new();
 
 pub trait Factory {
     type DB: Database;
@@ -84,4 +88,15 @@ where
         .await?;
 
     Ok(pool)
+}
+
+pub fn set_sql_logger(f: SqlLogger) {
+    let _ = SQL_LOGGER.set(f);
+}
+
+#[inline]
+pub fn trace_sql(sql: String, cost: Duration, err: Option<&anyhow::Error>) {
+    if let Some(logger) = SQL_LOGGER.get() {
+        logger(sql, cost, err)
+    }
 }
