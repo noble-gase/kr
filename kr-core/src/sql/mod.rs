@@ -9,10 +9,6 @@ use sqlx::{
     Database, MySql, Pool, Postgres, Sqlite,
 };
 
-pub type SqlLogger = fn(sql: String, cost: Duration, err: Option<&anyhow::Error>);
-
-static SQL_LOGGER: OnceLock<SqlLogger> = OnceLock::new();
-
 pub trait Factory {
     type DB: Database;
 
@@ -90,6 +86,10 @@ where
     Ok(pool)
 }
 
+pub type Logger = fn(sql: String, cost: Duration, err: Option<&anyhow::Error>);
+
+static SQL_LOGGER: OnceLock<Logger> = OnceLock::new();
+
 /// 设置SQL日志
 ///
 /// # Examples
@@ -110,7 +110,7 @@ where
 ///     }
 /// })
 /// ```
-pub fn set_sql_logger(f: SqlLogger) {
+pub fn set_sql_logger(f: Logger) {
     let _ = SQL_LOGGER.set(f);
 }
 
