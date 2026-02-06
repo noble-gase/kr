@@ -115,7 +115,7 @@ pub fn set_sql_logger(f: SqlLogger) {
 }
 
 #[inline]
-pub fn trace_sql(sql: String, cost: Duration, err: Option<&anyhow::Error>) {
+fn trace_sql(sql: String, cost: Duration, err: Option<&anyhow::Error>) {
     if let Some(logger) = SQL_LOGGER.get() {
         logger(sql, cost, err)
     }
