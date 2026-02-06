@@ -133,7 +133,6 @@ where
 {
     stmt.clear_selects();
     stmt.clear_order_by();
-    // SELECT COUNT(*)
     stmt.expr(Expr::cust("COUNT(*)"));
 
     let (sql, values) = stmt.build_sqlx(SqliteQueryBuilder);

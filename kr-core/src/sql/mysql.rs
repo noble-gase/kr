@@ -262,7 +262,6 @@ where
     let mut count = stmt.clone();
     count.clear_selects();
     count.clear_order_by();
-    // SELECT COUNT(*)
     count.expr(Expr::cust("COUNT(*)"));
 
     let (count_sql, count_values) = count.build_sqlx(MysqlQueryBuilder);
