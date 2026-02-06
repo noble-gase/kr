@@ -90,6 +90,26 @@ where
     Ok(pool)
 }
 
+/// 设置SQL日志
+///
+/// # Examples
+///
+/// ```
+/// sql::set_sql_logger(|sql, cost, err| {
+///     match err {
+///         Some(e) => {
+///             tracing::error!(sql = sql, cost_ms = cost.as_millis(), err = %e, "sql error");
+///         }
+///         None => {
+///             if cost > Duration::from_millis(200) {
+///                 tracing::warn!(sql = sql, cost_ms = cost.as_millis(), "slow sql");
+///             } else {
+///                 tracing::info!(sql = sql, cost_ms = cost.as_millis(), "sql");
+///             }
+///         }
+///     }
+/// })
+/// ```
 pub fn set_sql_logger(f: SqlLogger) {
     let _ = SQL_LOGGER.set(f);
 }
@@ -98,5 +118,28 @@ pub fn set_sql_logger(f: SqlLogger) {
 pub fn trace_sql(sql: String, cost: Duration, err: Option<&anyhow::Error>) {
     if let Some(logger) = SQL_LOGGER.get() {
         logger(sql, cost, err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use crate::sql;
+
+    #[test]
+    fn test_sql_logger() {
+        sql::set_sql_logger(|sql, cost, err| match err {
+            Some(e) => {
+                tracing::error!(sql = sql, cost_ms = cost.as_millis(), err = %e, "sql error");
+            }
+            None => {
+                if cost > Duration::from_millis(200) {
+                    tracing::warn!(sql = sql, cost_ms = cost.as_millis(), "slow sql");
+                } else {
+                    tracing::info!(sql = sql, cost_ms = cost.as_millis(), "sql");
+                }
+            }
+        })
     }
 }
