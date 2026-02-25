@@ -1,5 +1,5 @@
-pub mod async_red_lock;
-pub mod red_lock;
+pub mod async_redlock;
+pub mod redlock;
 
 pub const DEL: &str = r#"
 if redis.call("GET", KEYS[1]) == ARGV[1] then
