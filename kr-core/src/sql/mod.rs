@@ -5,8 +5,7 @@ pub mod sqlite;
 use std::{sync::OnceLock, time::Duration};
 
 use sqlx::{
-    mysql::MySqlPoolOptions, pool::PoolOptions, postgres::PgPoolOptions, sqlite::SqlitePoolOptions,
-    Database, MySql, Pool, Postgres, Sqlite,
+    mysql::MySqlPoolOptions, pool::PoolOptions, postgres::PgPoolOptions, sqlite::SqlitePoolOptions, Database, MySql, Pool, Postgres, Sqlite,
 };
 
 pub trait Factory {

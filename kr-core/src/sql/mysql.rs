@@ -1,8 +1,6 @@
 use std::time::Instant;
 
-use sea_query::{
-    DeleteStatement, Expr, InsertStatement, MysqlQueryBuilder, SelectStatement, UpdateStatement,
-};
+use sea_query::{DeleteStatement, Expr, InsertStatement, MysqlQueryBuilder, SelectStatement, UpdateStatement};
 use sea_query_binder::SqlxBinder;
 use sqlx::{mysql::MySqlRow, Executor, FromRow, MySql};
 
@@ -177,9 +175,7 @@ where
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
     let start = Instant::now();
-    let ret = sqlx::query_as_with::<_, T, _>(&sql, values)
-        .fetch_optional(db)
-        .await;
+    let ret = sqlx::query_as_with::<_, T, _>(&sql, values).fetch_optional(db).await;
     let cost = start.elapsed();
 
     match ret {
@@ -216,9 +212,7 @@ where
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
     let start = Instant::now();
-    let ret = sqlx::query_as_with::<_, T, _>(&sql, values)
-        .fetch_all(db)
-        .await;
+    let ret = sqlx::query_as_with::<_, T, _>(&sql, values).fetch_all(db).await;
     let cost = start.elapsed();
 
     match ret {
@@ -248,12 +242,7 @@ where
 ///
 /// let ret = mysql::paginate::<model::Demo>(&pool, stmt, 1, 10).await;
 /// ```
-pub async fn paginate<'e, E, T>(
-    db: E,
-    mut stmt: SelectStatement,
-    mut page: i32,
-    mut size: i32,
-) -> anyhow::Result<(Vec<T>, i64)>
+pub async fn paginate<'e, E, T>(db: E, mut stmt: SelectStatement, mut page: i32, mut size: i32) -> anyhow::Result<(Vec<T>, i64)>
 where
     E: Executor<'e, Database = MySql> + Copy,
     T: for<'r> FromRow<'r, MySqlRow> + Send + Unpin,
@@ -267,9 +256,7 @@ where
     let (count_sql, count_values) = count.build_sqlx(MysqlQueryBuilder);
 
     let count_start = Instant::now();
-    let ret: Result<i64, sqlx::Error> = sqlx::query_scalar_with(&count_sql, count_values)
-        .fetch_one(db)
-        .await;
+    let ret: Result<i64, sqlx::Error> = sqlx::query_scalar_with(&count_sql, count_values).fetch_one(db).await;
     let count_cost = count_start.elapsed();
 
     let total = match ret {
@@ -299,9 +286,7 @@ where
     let (query_sql, query_values) = stmt.build_sqlx(MysqlQueryBuilder);
 
     let query_start = Instant::now();
-    let ret = sqlx::query_as_with::<_, T, _>(&query_sql, query_values)
-        .fetch_all(db)
-        .await;
+    let ret = sqlx::query_as_with::<_, T, _>(&query_sql, query_values).fetch_all(db).await;
     let query_cost = query_start.elapsed();
 
     match ret {

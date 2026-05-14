@@ -167,22 +167,10 @@ where
     /// // 指定 tag_size
     /// let (cipher, tag) = gcm.encrypt("plaintext", "aad", Some(12)).unwrap();
     /// ```
-    pub fn encrypt(
-        &self,
-        data: impl AsRef<[u8]>,
-        aad: impl AsRef<[u8]>,
-        tag_size: Option<usize>,
-    ) -> Result<(Vec<u8>, Vec<u8>)> {
+    pub fn encrypt(&self, data: impl AsRef<[u8]>, aad: impl AsRef<[u8]>, tag_size: Option<usize>) -> Result<(Vec<u8>, Vec<u8>)> {
         let t = self.cipher()?;
         let mut tag = vec![0; tag_size.unwrap_or(16)];
-        let out = encrypt_aead(
-            t,
-            self.key.as_ref(),
-            Some(self.nonce.as_ref()),
-            aad.as_ref(),
-            data.as_ref(),
-            &mut tag,
-        )?;
+        let out = encrypt_aead(t, self.key.as_ref(), Some(self.nonce.as_ref()), aad.as_ref(), data.as_ref(), &mut tag)?;
         Ok((out, tag))
     }
 
@@ -192,21 +180,9 @@ where
     /// let gcm = GCM::new(key, nonce);
     /// let plain = gcm.decrypt("ciphertext", "aad", "tag").unwrap();
     /// ```
-    pub fn decrypt(
-        &self,
-        data: impl AsRef<[u8]>,
-        aad: impl AsRef<[u8]>,
-        tag: impl AsRef<[u8]>,
-    ) -> Result<Vec<u8>> {
+    pub fn decrypt(&self, data: impl AsRef<[u8]>, aad: impl AsRef<[u8]>, tag: impl AsRef<[u8]>) -> Result<Vec<u8>> {
         let t = self.cipher()?;
-        let out = decrypt_aead(
-            t,
-            self.key.as_ref(),
-            Some(self.nonce.as_ref()),
-            aad.as_ref(),
-            data.as_ref(),
-            tag.as_ref(),
-        )?;
+        let out = decrypt_aead(t, self.key.as_ref(), Some(self.nonce.as_ref()), aad.as_ref(), data.as_ref(), tag.as_ref())?;
         Ok(out)
     }
 
@@ -258,10 +234,7 @@ mod tests {
 
         // 32字节填充
         let cipher2 = cbc.encrypt("ILoveRust", Some(32)).unwrap();
-        assert_eq!(
-            BASE64_STANDARD.encode(&cipher2),
-            "6lj8Yn5eO5H9Sj2cEAe01MF+deF8VDokuCv6nLb9Cw4="
-        );
+        assert_eq!(BASE64_STANDARD.encode(&cipher2), "6lj8Yn5eO5H9Sj2cEAe01MF+deF8VDokuCv6nLb9Cw4=");
 
         let plain2 = cbc.decrypt(&cipher2).unwrap();
         assert_eq!(plain2, b"ILoveRust");
@@ -281,10 +254,7 @@ mod tests {
 
         // 32字节填充
         let cipher2 = ecb.encrypt("ILoveRust", Some(32)).unwrap();
-        assert_eq!(
-            BASE64_STANDARD.encode(&cipher2),
-            "3kcomMJ4/+z1CNQsuVKOqob5I9/o6GPWU0rcVuA+rn0="
-        );
+        assert_eq!(BASE64_STANDARD.encode(&cipher2), "3kcomMJ4/+z1CNQsuVKOqob5I9/o6GPWU0rcVuA+rn0=");
 
         let plain2 = ecb.decrypt(&cipher2).unwrap();
         assert_eq!(plain2, b"ILoveRust");

@@ -131,10 +131,7 @@ pub fn hmac_sha256<T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>)
 /// // Vec<u8>
 /// let h = hmac::<Md5, Vec<u8>>(b"key", b"shenghui");
 /// ```
-pub fn hmac<D: Digest + BlockSizeUser, T: HashOutput>(
-    key: impl AsRef<[u8]>,
-    data: impl AsRef<[u8]>,
-) -> T::Output {
+pub fn hmac<D: Digest + BlockSizeUser, T: HashOutput>(key: impl AsRef<[u8]>, data: impl AsRef<[u8]>) -> T::Output {
     let mut h = SimpleHmac::<D>::new_from_slice(key.as_ref()).unwrap();
     h.update(data.as_ref());
     T::from_bytes(h.finalize().into_bytes().into_iter().collect::<Vec<u8>>())
@@ -150,26 +147,11 @@ mod tests {
 
     #[test]
     fn digest_hash() {
-        assert_eq!(
-            md5::<String>("shenghui"),
-            "ff7f89cbe5c489ff2825d97c4e7b6f7c"
-        );
-        assert_eq!(
-            sha1::<String>("shenghui"),
-            "5d06bcf2a58b4e2ae3280e031f84baa8a28db3aa"
-        );
-        assert_eq!(
-            sha256::<String>("shenghui"),
-            "c6f540373c19d5cc0564fdce042b74d7e57c4fc352878f8128a7d513bac76568"
-        );
-        assert_eq!(
-            hash::<Sha1, String>("shenghui"),
-            "5d06bcf2a58b4e2ae3280e031f84baa8a28db3aa"
-        );
-        assert_eq!(
-            hash::<Sha224, String>("shenghui"),
-            "a79fee2960ea91b511556f393e3bbdc1da5aa17253b029c36adf0ef3"
-        );
+        assert_eq!(md5::<String>("shenghui"), "ff7f89cbe5c489ff2825d97c4e7b6f7c");
+        assert_eq!(sha1::<String>("shenghui"), "5d06bcf2a58b4e2ae3280e031f84baa8a28db3aa");
+        assert_eq!(sha256::<String>("shenghui"), "c6f540373c19d5cc0564fdce042b74d7e57c4fc352878f8128a7d513bac76568");
+        assert_eq!(hash::<Sha1, String>("shenghui"), "5d06bcf2a58b4e2ae3280e031f84baa8a28db3aa");
+        assert_eq!(hash::<Sha224, String>("shenghui"), "a79fee2960ea91b511556f393e3bbdc1da5aa17253b029c36adf0ef3");
         assert_eq!(
             hash::<Sha256, String>("shenghui"),
             "c6f540373c19d5cc0564fdce042b74d7e57c4fc352878f8128a7d513bac76568"
@@ -182,10 +164,7 @@ mod tests {
             hash::<Sha512, String>("shenghui"),
             "42071eb6241a2a19c01c1cb7cad9aa5730c1d15de8b54ff4f333e7c9e5854640084f20a1406bf362c22131725c432b387832a9431859eb031b914890ddd01671"
         );
-        assert_eq!(
-            hash::<Sha512_224, String>("shenghui"),
-            "25ecca889865b41d2386b08d71e84bd4bb6dc9bfb4bda5127462ad90"
-        );
+        assert_eq!(hash::<Sha512_224, String>("shenghui"), "25ecca889865b41d2386b08d71e84bd4bb6dc9bfb4bda5127462ad90");
         assert_eq!(
             hash::<Sha512_256, String>("shenghui"),
             "f12bb32e3b8cf30102b9b2a316e84bc69ee009623197a17a97ed33dc8a71a872"
@@ -194,14 +173,8 @@ mod tests {
 
     #[test]
     fn digest_hmac() {
-        assert_eq!(
-            hmac::<Md5, String>("IIInsomnia", "shenghui"),
-            "cac9160ed60eb1bcca32c7460b5ca238"
-        );
-        assert_eq!(
-            hmac::<Sha1, String>("IIInsomnia", "shenghui"),
-            "750583660d10fbadf8004f462aa7ef1d9f18cd91"
-        );
+        assert_eq!(hmac::<Md5, String>("IIInsomnia", "shenghui"), "cac9160ed60eb1bcca32c7460b5ca238");
+        assert_eq!(hmac::<Sha1, String>("IIInsomnia", "shenghui"), "750583660d10fbadf8004f462aa7ef1d9f18cd91");
         assert_eq!(
             hmac::<Sha224, String>("IIInsomnia", "shenghui"),
             "c2b5456bf70ab7be63de54c055a66554d0ee558f1c6985a5325f2b0a"
@@ -226,10 +199,7 @@ mod tests {
             hmac::<Sha512_256, String>("IIInsomnia", "shenghui"),
             "9863f2c13c3218265d374f82605ef368d6577e4d292d122117fa07c72839b71e"
         );
-        assert_eq!(
-            hmac_sha1::<String>("IIInsomnia", "shenghui"),
-            "750583660d10fbadf8004f462aa7ef1d9f18cd91"
-        );
+        assert_eq!(hmac_sha1::<String>("IIInsomnia", "shenghui"), "750583660d10fbadf8004f462aa7ef1d9f18cd91");
         assert_eq!(
             hmac_sha256::<String>("IIInsomnia", "shenghui"),
             "6ea90a066be004ca5ac384d79605d8a2403cc8a9b14ffc988822bf85be12b038"

@@ -59,11 +59,7 @@ impl AsyncRedLock {
     }
 
     /// 尝试获取锁
-    pub async fn try_acquire(
-        mut self,
-        attempts: usize,
-        duration: time::Duration,
-    ) -> anyhow::Result<Option<Self>> {
+    pub async fn try_acquire(mut self, attempts: usize, duration: time::Duration) -> anyhow::Result<Option<Self>> {
         let threshold = attempts.saturating_sub(1);
         for i in 0..attempts {
             self.set_nx().await?;
@@ -185,11 +181,10 @@ mod tests {
             .unwrap();
 
         {
-            let lock =
-                AsyncRedLock::new(pool, "test_async_red_lock", time::Duration::from_secs(10))
-                    .acquire()
-                    .await
-                    .unwrap();
+            let lock = AsyncRedLock::new(pool, "test_async_red_lock", time::Duration::from_secs(10))
+                .acquire()
+                .await
+                .unwrap();
             assert!(lock.is_some());
         }
 

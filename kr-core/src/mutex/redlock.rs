@@ -52,11 +52,7 @@ impl RedLock {
     }
 
     /// 尝试获取锁
-    pub fn try_acquire(
-        mut self,
-        attempts: usize,
-        duration: time::Duration,
-    ) -> anyhow::Result<Option<Self>> {
+    pub fn try_acquire(mut self, attempts: usize, duration: time::Duration) -> anyhow::Result<Option<Self>> {
         let threshold = attempts.saturating_sub(1);
         for i in 0..attempts {
             self.set_nx()?;

@@ -18,12 +18,7 @@ pub enum Redis {
 }
 
 impl Redis {
-    pub async fn get_or_set<T, F, Fut>(
-        &self,
-        key: impl AsRef<str>,
-        loader: F,
-        ttl: Option<Duration>,
-    ) -> anyhow::Result<Option<T>>
+    pub async fn get_or_set<T, F, Fut>(&self, key: impl AsRef<str>, loader: F, ttl: Option<Duration>) -> anyhow::Result<Option<T>>
     where
         T: Serialize + DeserializeOwned + Send + 'static,
         F: FnOnce() -> Fut,
@@ -92,11 +87,7 @@ impl Redis {
     }
 
     pub async fn hget_or_set<T, F, Fut>(
-        &self,
-        key: impl AsRef<str>,
-        field: impl AsRef<str>,
-        loader: F,
-        ttl: Option<Duration>,
+        &self, key: impl AsRef<str>, field: impl AsRef<str>, loader: F, ttl: Option<Duration>,
     ) -> anyhow::Result<Option<T>>
     where
         T: Serialize + DeserializeOwned + Send + 'static,
@@ -325,11 +316,7 @@ impl Redis {
         }
     }
 
-    pub async fn hmget_str_map<K>(
-        &self,
-        key: K,
-        fields: &[K],
-    ) -> anyhow::Result<HashMap<String, String>>
+    pub async fn hmget_str_map<K>(&self, key: K, fields: &[K]) -> anyhow::Result<HashMap<String, String>>
     where
         K: AsRef<str> + Sync,
     {
@@ -462,12 +449,7 @@ mod tests {
             .unwrap();
         println!(">> {:#?}", ret);
 
-        let _: RedisResult<()> = pool
-            .get()
-            .await
-            .unwrap()
-            .del(&["foo", "bar", "hello"])
-            .await;
+        let _: RedisResult<()> = pool.get().await.unwrap().del(&["foo", "bar", "hello"]).await;
     }
 
     #[tokio::test]
@@ -493,12 +475,7 @@ mod tests {
             .unwrap();
         println!(">> {:#?}", ret);
 
-        let _: RedisResult<()> = pool
-            .get()
-            .await
-            .unwrap()
-            .del(&["foo", "bar", "hello"])
-            .await;
+        let _: RedisResult<()> = pool.get().await.unwrap().del(&["foo", "bar", "hello"]).await;
     }
 
     #[tokio::test]
