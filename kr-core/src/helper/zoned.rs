@@ -3,7 +3,7 @@ use time::OffsetDateTime;
 
 pub const DATE_TIME: &str = "%Y-%m-%d %H:%M:%S";
 pub const DATE_ONLY: &str = "%Y-%m-%d";
-pub const TIME_OLNY: &str = "%H:%M:%S";
+pub const TIME_ONLY: &str = "%H:%M:%S";
 
 /// Trait: 将不同时间类型统一转换为 jiff::Zoned
 pub trait ToZoned {
