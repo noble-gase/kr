@@ -4,7 +4,7 @@ use sea_query::{DeleteStatement, Expr, InsertStatement, SelectStatement, SqliteQ
 use sea_query_binder::SqlxBinder;
 use sqlx::{sqlite::SqliteRow, Executor, FromRow, Sqlite};
 
-use crate::sql::trace_sql;
+use crate::sql::{is_unique_violation, trace_sql, InsertOutcome};
 
 /// 插入记录
 ///
@@ -17,9 +17,9 @@ use crate::sql::trace_sql;
 ///     .values_panic(["demo".into()])
 ///     .to_owned();
 ///
-/// let ret = sqlite::create(&pool, stmt).await;
+/// let ret = sqlite::insert(&pool, stmt).await;
 /// ```
-pub async fn create<'e, E>(db: E, stmt: InsertStatement) -> anyhow::Result<i64>
+pub async fn insert<'e, E>(db: E, stmt: InsertStatement) -> anyhow::Result<InsertOutcome<i64>>
 where
     E: Executor<'e, Database = Sqlite>,
 {
@@ -32,9 +32,14 @@ where
     match ret {
         Ok(v) => {
             trace_sql(stmt.to_string(SqliteQueryBuilder), cost, None);
-            Ok(v.last_insert_rowid())
+            Ok(InsertOutcome::Inserted(v.last_insert_rowid()))
         }
         Err(e) => {
+            if is_unique_violation(&e) {
+                trace_sql(stmt.to_string(SqliteQueryBuilder), cost, None);
+                return Ok(InsertOutcome::Duplicate);
+            }
+
             let err = anyhow::Error::from(e);
             trace_sql(stmt.to_string(SqliteQueryBuilder), cost, Some(&err));
             Err(err)

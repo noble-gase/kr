@@ -8,6 +8,22 @@ use sqlx::{
     mysql::MySqlPoolOptions, pool::PoolOptions, postgres::PgPoolOptions, sqlite::SqlitePoolOptions, Database, MySql, Pool, Postgres, Sqlite,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InsertOutcome<T> {
+    Inserted(T),
+    Duplicate,
+}
+
+#[inline]
+pub fn is_unique_violation(err: &sqlx::Error) -> bool {
+    err.as_database_error().is_some_and(|db| db.is_unique_violation())
+}
+
+#[inline]
+pub fn is_unique_violation_anyhow(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<sqlx::Error>().is_some_and(is_unique_violation)
+}
+
 pub trait Factory {
     type DB: Database;
 

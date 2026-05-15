@@ -1,9 +1,9 @@
 pub mod redkit;
 pub mod zoned;
 
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 
 pub fn nonce(size: usize) -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     Alphanumeric.sample_string(&mut rng, size)
 }

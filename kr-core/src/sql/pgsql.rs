@@ -4,7 +4,7 @@ use sea_query::{DeleteStatement, Expr, InsertStatement, PostgresQueryBuilder, Se
 use sea_query_binder::SqlxBinder;
 use sqlx::{postgres::PgRow, Executor, FromRow, Postgres};
 
-use crate::sql::trace_sql;
+use crate::sql::{is_unique_violation, trace_sql, InsertOutcome};
 
 /// 插入记录
 ///
@@ -17,9 +17,9 @@ use crate::sql::trace_sql;
 ///     .values_panic(["demo".into()])
 ///     .to_owned();
 ///
-/// let ret = pgsql::create(&pool, stmt).await;
+/// let ret = pgsql::insert(&pool, stmt).await;
 /// ```
-pub async fn create<'e, E, T>(db: E, stmt: InsertStatement) -> anyhow::Result<T>
+pub async fn insert<'e, E, T>(db: E, stmt: InsertStatement) -> anyhow::Result<InsertOutcome<T>>
 where
     E: Executor<'e, Database = Postgres>,
     T: for<'r> FromRow<'r, PgRow> + Send + Unpin,
@@ -33,9 +33,14 @@ where
     match ret {
         Ok(v) => {
             trace_sql(stmt.to_string(PostgresQueryBuilder), cost, None);
-            Ok(v)
+            Ok(InsertOutcome::Inserted(v))
         }
         Err(e) => {
+            if is_unique_violation(&e) {
+                trace_sql(stmt.to_string(PostgresQueryBuilder), cost, None);
+                return Ok(InsertOutcome::Duplicate);
+            }
+
             let err = anyhow::Error::from(e);
             trace_sql(stmt.to_string(PostgresQueryBuilder), cost, Some(&err));
             Err(err)
@@ -55,9 +60,9 @@ where
 ///     .values_panic(["bar".into()])
 ///     .to_owned();
 ///
-/// let ret = pgsql::batch_create(&pool, stmt).await;
+/// let ret = pgsql::batch_insert(&pool, stmt).await;
 /// ```
-pub async fn batch_create<'e, E, T>(db: E, stmt: InsertStatement) -> anyhow::Result<Vec<T>>
+pub async fn batch_insert<'e, E, T>(db: E, stmt: InsertStatement) -> anyhow::Result<Vec<T>>
 where
     E: Executor<'e, Database = Postgres>,
     T: for<'r> FromRow<'r, PgRow> + Send + Unpin,
