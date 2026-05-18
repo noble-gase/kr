@@ -101,7 +101,7 @@ where
     Ok(pool)
 }
 
-pub type Logger = fn(sql: String, cost: Duration, err: Option<&anyhow::Error>);
+pub type Logger = Box<dyn Fn(String, Duration, Option<&anyhow::Error>) + Send + Sync + 'static>;
 
 static SQL_LOGGER: OnceLock<Logger> = OnceLock::new();
 
@@ -125,8 +125,11 @@ static SQL_LOGGER: OnceLock<Logger> = OnceLock::new();
 ///     }
 /// })
 /// ```
-pub fn set_sql_logger(f: Logger) {
-    let _ = SQL_LOGGER.set(f);
+pub fn set_sql_logger<F>(f: F)
+where
+    F: Fn(String, Duration, Option<&anyhow::Error>) + Send + Sync + 'static,
+{
+    let _ = SQL_LOGGER.set(Box::new(f));
 }
 
 #[inline]

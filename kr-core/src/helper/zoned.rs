@@ -1,8 +1,13 @@
 use jiff::{tz::TimeZone, Timestamp, Zoned};
 use time::OffsetDateTime;
 
+/// `jiff::fmt::strtime` 格式：年-月-日 时:分:秒
 pub const DATE_TIME: &str = "%Y-%m-%d %H:%M:%S";
+
+/// `jiff::fmt::strtime` 格式：年-月-日
 pub const DATE_ONLY: &str = "%Y-%m-%d";
+
+/// `jiff::fmt::strtime` 格式：时:分:秒
 pub const TIME_ONLY: &str = "%H:%M:%S";
 
 /// Trait: 将不同时间类型统一转换为 jiff::Zoned

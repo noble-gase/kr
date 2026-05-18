@@ -7,7 +7,7 @@ use syn::{
     Ident, Path, Token,
 };
 
-/// 解析 #[partial(Target { ... })] 或 #[partial(Target !{ ... })]
+/// 解析 #[model (Target(...))] 或 #[model !(Target(...))]
 struct PartialAttr {
     target: Ident,
     exclude: bool,

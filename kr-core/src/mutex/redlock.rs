@@ -103,7 +103,7 @@ impl RedLock {
                 Ok(())
             }
             Err(e) => {
-                // 尝试GET一次：避免因redis网络错误导致误加锁
+                // 异常错误，尝试GET一次：避免因网络错误导致误加锁
                 let ret_get: Option<String> = conn.get(&self.key)?;
                 let v = ret_get.ok_or(e)?;
                 if v == token {

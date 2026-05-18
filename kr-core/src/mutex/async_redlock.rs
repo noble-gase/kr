@@ -111,7 +111,7 @@ impl AsyncRedLock {
                 Ok(())
             }
             Err(e) => {
-                // 尝试GET一次：避免因redis网络错误导致误加锁
+                // 异常错误，尝试GET一次：避免因网络错误导致误加锁
                 let ret_get: Option<String> = conn.get(&self.key).await?;
                 let v = ret_get.ok_or(e)?;
                 if v == token {
@@ -176,7 +176,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_red_lock() {
-        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379".to_string()], None)
+        let pool = redix::open::<redix::Single>(vec!["redis://127.0.0.1:6379"], None)
             .await
             .unwrap();
 

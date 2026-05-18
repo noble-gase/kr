@@ -12,7 +12,7 @@ pub type ClusterPool = bb8::Pool<cluster::RedisClusterManager>;
 pub trait Factory {
     type Manager: ManageConnection<Error: std::error::Error + Send + Sync + 'static>;
 
-    fn build(dsn: Vec<String>) -> anyhow::Result<Self::Manager>;
+    fn build(dsn: Vec<impl AsRef<str>>) -> anyhow::Result<Self::Manager>;
 }
 
 pub struct Single;
@@ -20,8 +20,9 @@ pub struct Single;
 impl Factory for Single {
     type Manager = single::RedisConnManager;
 
-    fn build(dsn: Vec<String>) -> anyhow::Result<Self::Manager> {
+    fn build(dsn: Vec<impl AsRef<str>>) -> anyhow::Result<Self::Manager> {
         let first = dsn.first().ok_or_else(|| anyhow::anyhow!("DSN is empty"))?;
+
         let client = redis::Client::open(first.as_ref())?;
         let mut conn = client.get_connection()?;
         let _ = redis::cmd("PING").query::<String>(&mut conn)?;
@@ -35,8 +36,10 @@ pub struct Cluster;
 impl Factory for Cluster {
     type Manager = cluster::RedisClusterManager;
 
-    fn build(dsn: Vec<String>) -> anyhow::Result<Self::Manager> {
-        let client = redis::cluster::ClusterClient::new(dsn)?;
+    fn build(dsn: Vec<impl AsRef<str>>) -> anyhow::Result<Self::Manager> {
+        let nodes: Vec<&str> = dsn.iter().map(|s| s.as_ref()).collect();
+
+        let client = redis::cluster::ClusterClient::new(nodes)?;
         let mut conn = client.get_connection()?;
         let _ = redis::cmd("PING").query::<String>(&mut conn)?;
 
@@ -69,7 +72,7 @@ pub struct Params {
 /// // 集群
 /// let x = redix::open::<redix::Cluster>(vec!["dsn1", "dsn2"], None).await;
 /// ```
-pub async fn open<F>(dsn: Vec<String>, opt: Option<Params>) -> anyhow::Result<bb8::Pool<F::Manager>>
+pub async fn open<F>(dsn: Vec<impl AsRef<str>>, opt: Option<Params>) -> anyhow::Result<bb8::Pool<F::Manager>>
 where
     F: Factory,
 {
