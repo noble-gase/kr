@@ -1,12 +1,14 @@
-pub use kr_core::*;
+pub fn add(left: u64, right: u64) -> u64 {
+    left + right
+}
 
-#[cfg(feature = "macros")]
-pub use kr_macros::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-use std::panic::Location;
-
-#[track_caller]
-pub fn make_ctx(msg: impl Into<String>) -> String {
-    let loc = Location::caller();
-    format!("{} ({}:{})", msg.into(), loc.file(), loc.line())
+    #[test]
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
+    }
 }

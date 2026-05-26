@@ -1,34 +1,9 @@
-[workspace]
-members = [".", "kr-core", "kr-macros"]
-
-[workspace.package]
-version = "0.8.0"
-edition = "2021"
-authors = ["ShengHui <847713844@qq.com>"]
-keywords = ["aes", "crypto", "hash", "sql", "redlock"]
-documentation = "https://docs.rs/kr"
-license = "MIT"
-repository = "https://github.com/noble-gase/kr"
-
 [package]
-name = "kr"
-description = "The Rust Development Toolkit"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-keywords.workspace = true
-documentation.workspace = true
-license.workspace = true
-repository.workspace = true
-
-[features]
-default = []
-macros = ["kr-macros"]
-
-[workspace.dependencies]
-kr-core = { path = "kr-core", version = "0.8" }
-kr-macros = { path = "kr-macros", version = "0.5" }
+name = "krypton-rs"
+version = "0.0.1"
+edition = "2024"
+description = "krypton-rs"
+license = "MIT"
+repository = "https://github.com/noble-gase/krypton-rs"
 
 [dependencies]
-kr-core = { workspace = true }
-kr-macros = { workspace = true, optional = true }
